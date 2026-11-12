@@ -94,12 +94,73 @@ Everything currently lands in `$HOME`. Target layout:
 - [ ] "License" section → `LICENSE` (MIT)
 - [ ] Panel screenshot (optional)
 
+## P3 — Device integrations (Tuya Wi-Fi and Zigbee 3)
+
+Goal: control Tuya Wi-Fi devices and Zigbee 3 devices (through the existing
+gateway) from Domoticz.
+
+Scope note: this repository is an installer. Integration work is
+documentation-first; add script support only where it is genuinely reusable.
+Do not bloat `setup_domoticz.sh` with device-specific logic.
+
+### 13. Discovery (do this first)
+
+- [ ] Record the gateway brand, model, firmware, and supported local interfaces
+      (MQTT bridge, local API, Matter, cloud-only)
+- [ ] Inventory the Tuya Wi-Fi devices and check whether local keys can be
+      extracted
+- [ ] Decide whether the Zigbee stack runs on the Pi Zero W or on a more capable
+      always-on host
+
+Open questions:
+
+- Is the gateway Tuya-branded and cloud-only, or does it expose a local/MQTT
+  bridge?
+- Is cloud dependency acceptable for Tuya Wi-Fi devices, or is local-only
+  control required?
+- Is there a spare always-on host for Zigbee2MQTT, or must everything run on the
+  Pi Zero W (512 MB RAM)?
+
+### 14. Tuya Wi-Fi
+
+- [ ] Prefer local control (`tinytuya` / local API) over the Tuya cloud
+- [ ] Document how to obtain the device ID and local key without committing
+      secrets
+- [ ] Map devices to Domoticz (MQTT topics or a Python plugin) and document
+      naming
+- [ ] Define polling interval and reconnect behavior after network loss
+
+### 15. Zigbee 3 (existing gateway)
+
+- [ ] If the gateway exposes MQTT, bridge it to Domoticz through Mosquitto
+- [ ] Otherwise document the supported path (Zigbee2MQTT coordinator, deCONZ, or
+      the gateway's cloud)
+- [ ] Resource check: Zigbee2MQTT (Node.js) is heavy for a Pi Zero W; prefer an
+      external host and enable `--mqtt-lan`
+- [ ] Document pairing and device naming in Domoticz
+
+### 16. Security and operations
+
+- [ ] Broker authentication is mandatory (depends on P1.7); no anonymous access
+- [ ] Cloud credentials and device keys never enter the repository; document
+      where they live
+- [ ] Backups cover device pairing data, not only `domoticz.db`
+- [ ] Test recovery after a reboot and after a broker restart
+
+Acceptance criteria:
+
+- A Tuya Wi-Fi device state change round-trips to Domoticz within the documented
+  interval and survives a reboot.
+- Zigbee devices pair through the gateway and appear in Domoticz.
+- No credentials in the repository; the broker rejects anonymous clients.
+
 ## Suggested order
 
 1. **7** — Mosquitto (code + README MQTT section), so documentation matches behavior
 2. **9 + 12** — README only (firewall, Uninstall, Tested on, License)
-3. **11** — tag/release once behavior is final
-4. **8** — last, separate branch, tested on the device
+3. **11** — tag/release once behavior is final (installer v1.0.0)
+4. **13–16** — device integrations (docs + optional helpers), released as v1.1.0
+5. **8** — last, separate branch, tested on the device
 
 ## Acceptance criteria
 
