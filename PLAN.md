@@ -48,8 +48,11 @@ Status as of 2026-11-12 (code state: `f424e12`, `Harden ARMv6 setup script and a
 The broker is currently only installed. To do:
 
 - [ ] `/etc/mosquitto/conf.d/domoticz.conf`: `allow_anonymous false`, `password_file /etc/mosquitto/passwd`
-- [ ] Create an MQTT user (`mosquitto_passwd`); print a random password at the end **or** let the user provide one — see decisions below
-- [ ] Explicit `listener 1883` only if the broker must be reachable from the LAN (ESPHome/ESP32)
+- [ ] Add `--mqtt-lan` and `--help` flags to the installer
+- [ ] Create the `domoticz` MQTT user with a generated password (`openssl rand -hex 16`), printed once; skip creation if the password file already exists
+- [ ] Require `openssl` (add it to the `require_cmd` checks)
+- [ ] `listener 1883 0.0.0.0` only behind `--mqtt-lan` (see Decisions)
+- [ ] Restart Mosquitto after writing the config and verify auth: anonymous publish rejected, authenticated publish accepted
 - [ ] README: how to add the broker as a "hardware" entry in Domoticz and how to add more devices
 - [ ] README: clear warning that enabling auth requires configuring credentials in Domoticz/ESP, otherwise things stop working
 
@@ -75,7 +78,7 @@ Everything currently lands in `$HOME`. Target layout:
 
 - [ ] README: port 8080 listens on `0.0.0.0`; show `ufw allow from <LAN> to any port 8080`
 - [ ] README: stronger warning about `admin/domoticz`
-- [ ] Optional: the script checks `ufw` status but does **not** install it silently
+- [ ] With `--mqtt-lan`, print the `ufw` rule for port 1883 and warn if the firewall is inactive (never install `ufw` silently)
 
 ## P2 — Versioning and documentation
 
@@ -95,29 +98,34 @@ Everything currently lands in `$HOME`. Target layout:
 
 ## Suggested order
 
-1. **9 + 12** — README only, zero risk
-2. **7** — medium effort, clear security gain
-3. **11** — tag/release once content stabilizes
+1. **7** — Mosquitto (code + README MQTT section), so documentation matches behavior
+2. **9 + 12** — README only (firewall, Uninstall, Tested on, License)
+3. **11** — tag/release once behavior is final
 4. **8** — last, separate branch, tested on the device
 
 ## Acceptance criteria
 
 - **7 (Mosquitto):** anonymous publish is rejected; publishing with the generated
-  credentials succeeds; the documented Domoticz setup works on a fresh install.
+  credentials succeeds; re-running the installer does not rotate credentials;
+  `--mqtt-lan` exposes the broker only with auth; the documented Domoticz setup
+  works on a fresh install.
 - **8 (Layout):** a fresh install runs from `/opt/domoticz` and
   `/var/lib/domoticz`; an existing `$HOME` install migrates with a database
   backup; the service passes `systemd-analyze security` review.
 - **9 / 12:** README-only changes; acceptance means the documented commands work
   on a fresh install.
 
-## Open decisions and recommendations
+## Decisions
 
-- [ ] Mosquitto password — **recommendation:** generate a random password and
-      print it once at the end of the run.
-- [ ] Broker exposure — **recommendation:** keep it localhost-only by default and
-      expose it on the LAN only via an explicit opt-in flag.
-- [ ] `PLAN.md` location — **recommendation:** keep it in the repo while the
-      project is small.
+Decided on 2026-11-12:
+
+- **Mosquitto credentials:** generate a random password (`openssl rand -hex 16`),
+  create user `domoticz`, and print the credentials once at the end. Never rotate
+  an existing password file on re-run; report "existing credentials unchanged".
+- **Broker exposure:** localhost-only by default. LAN access requires the
+  explicit `--mqtt-lan` flag, which adds `listener 1883 0.0.0.0` together with
+  authentication and a firewall hint.
+- **`PLAN.md`:** stays in the repository while the project is small.
 
 ## Branch workflow
 

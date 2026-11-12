@@ -6,7 +6,7 @@ community-built Domoticz binary because upstream dropped ARMv6 support.
 
 ## Before starting
 
-- Read `PLAN.md` for the roadmap, acceptance criteria, and open decisions.
+- Read `PLAN.md` for the roadmap, acceptance criteria, and recorded decisions.
 - Load the `domoticz-armv6` skill for the maintenance procedure.
 - Work on the first unchecked item in the suggested order unless told otherwise.
 
