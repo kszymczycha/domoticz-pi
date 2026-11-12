@@ -68,9 +68,7 @@ Everything currently lands in `$HOME`. Target layout:
 - [ ] Unit hardening: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome=true`, `ReadWritePaths=/var/lib/domoticz`
 - [ ] Logrotate for file-based logs (if Domoticz writes to `domoticz.log`)
 - [ ] Migration path from the old `$HOME` install: detect `domoticz.db`, back it up, move it
-- [ ] Migration policy — **recommendation:** detect an existing `$HOME/domoticz.db`,
-      create a timestamped backup, then migrate; abort with instructions if the
-      backup fails. Never silently overwrite an existing database.
+- [ ] Migration policy — see Decisions (automatic migration with a timestamped backup)
 
 **Risk: high.** Requires testing on a real Pi Zero; do it on a separate branch.
 
@@ -110,8 +108,9 @@ Everything currently lands in `$HOME`. Target layout:
   `--mqtt-lan` exposes the broker only with auth; the documented Domoticz setup
   works on a fresh install.
 - **8 (Layout):** a fresh install runs from `/opt/domoticz` and
-  `/var/lib/domoticz`; an existing `$HOME` install migrates with a database
-  backup; the service passes `systemd-analyze security` review.
+  `/var/lib/domoticz`; an existing `$HOME` install migrates with a timestamped
+  database backup and aborts if the backup cannot be created; the service passes
+  `systemd-analyze security` review.
 - **9 / 12:** README-only changes; acceptance means the documented commands work
   on a fresh install.
 
@@ -126,6 +125,10 @@ Decided on 2026-11-12:
   explicit `--mqtt-lan` flag, which adds `listener 1883 0.0.0.0` together with
   authentication and a firewall hint.
 - **`PLAN.md`:** stays in the repository while the project is small.
+- **Layout migration (P1.8):** detect an existing `$HOME/domoticz.db`, create a
+  timestamped backup, then migrate to `/var/lib/domoticz`; abort with
+  instructions if the backup fails. Never silently overwrite an existing
+  database.
 
 ## Branch workflow
 
