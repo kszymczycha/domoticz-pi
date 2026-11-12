@@ -25,6 +25,8 @@ Status as of 2026-11-12 (code state: `f424e12`, `Harden ARMv6 setup script and a
   mutable URLs, or reintroduce CRLF line endings.
 - Known gap until P2.11: the README still downloads the script from `main`.
 - `git log` is the source of truth for status; the Done list below is a snapshot.
+- Maintenance procedure: `.opencode/skills/domoticz-armv6/SKILL.md`; keep it in
+  sync with this plan.
 
 ## Done
 
