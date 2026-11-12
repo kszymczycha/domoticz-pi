@@ -58,6 +58,21 @@ The broker is currently only installed. To do:
 
 Out of scope: TLS — its performance cost on a Pi Zero is disproportionate for a home LAN.
 
+Implementation contract:
+
+- CLI: `--mqtt-lan` and `--help`; an unknown flag exits with code 2 and prints
+  usage.
+- Declarative state: `listener 1883 0.0.0.0` is present **if and only if**
+  `--mqtt-lan` was passed. Re-running without the flag removes it.
+- Credentials: create the password file only when it does not exist. When it
+  exists, print "existing credentials unchanged" and do not touch it.
+- File mode `0600`, owner `mosquitto:mosquitto`; restart Mosquitto after writing
+  the configuration.
+- The script verifies the result itself:
+  - `mosquitto_pub` without credentials fails;
+  - `mosquitto_pub` with the generated credentials succeeds;
+  - `ss -ltn` shows `127.0.0.1:1883` without the flag and `0.0.0.0:1883` with it.
+
 ### 8. Separate binary, data and logs
 
 Everything currently lands in `$HOME`. Target layout:
@@ -165,9 +180,9 @@ Acceptance criteria:
 ## Acceptance criteria
 
 - **7 (Mosquitto):** anonymous publish is rejected; publishing with the generated
-  credentials succeeds; re-running the installer does not rotate credentials;
-  `--mqtt-lan` exposes the broker only with auth; the documented Domoticz setup
-  works on a fresh install.
+  credentials succeeds; re-running the installer does not rotate credentials; the
+  listener is localhost-only without `--mqtt-lan` and `0.0.0.0` with it; the
+  documented Domoticz setup works on a fresh install.
 - **8 (Layout):** a fresh install runs from `/opt/domoticz` and
   `/var/lib/domoticz`; an existing `$HOME` install migrates with a timestamped
   database backup and aborts if the backup cannot be created; the service passes
@@ -193,7 +208,8 @@ Decided on 2026-11-12:
 
 ## Branch workflow
 
-- P1.7, P2.11, P2.12: short-lived branch + pull request.
+- While the repository has a single maintainer, P1.7, P2.9, P2.11, P2.12 and
+  P3 documentation changes go straight to `main` after a green CI run.
 - P1.8: branch `refactor/layout`, manual test on a real Pi Zero, merge only after
   that test passes.
 - Keep `main` releasable; never force-push `main` except for history rewrites
