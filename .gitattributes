@@ -1,0 +1,2 @@
+# Normalize line endings so the scripts keep working on Linux.
+* text=auto eol=lf

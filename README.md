@@ -3,6 +3,7 @@
 [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-Zero%20W-red.svg)](https://www.raspberrypi.com/)
 [![Architecture](https://img.shields.io/badge/Architecture-ARMv6-blue.svg)]()
 [![Domoticz](https://img.shields.io/badge/Domoticz-2024.4-green.svg)](https://www.domoticz.com/)
+[![ShellCheck](https://github.com/kszymczycha/domoticz-pi/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/kszymczycha/domoticz-pi/actions/workflows/shellcheck.yml)
 
 This script automates the installation and configuration of the **Domoticz** home automation server and the **MQTT (Mosquitto)** broker on a Raspberry Pi Zero W (ARMv6 architecture).
 
@@ -52,6 +53,11 @@ The script will perform all operations automatically. This process may take 5 to
 4. **Replaces the main binary** with the one prepared by the community (from the `PE1DDA` repository), which is 100% compatible with the ARMv6 processor.
 5. **Creates a modern `systemd` service** (replacing the faulty, old `/etc/init.d/` script), ensuring stable background operation and autostart on boot.
 6. **Installs and starts the MQTT broker (Mosquitto)**, which is essential for communication with IoT devices (e.g., ESPHome/ESP32).
+
+Before anything is installed, the script also:
+- verifies that it runs on **ARMv6** (`armv6l`) as a regular user via `sudo`,
+- requires at least **512 MB of free space** in the target home directory,
+- downloads only **version-pinned artifacts** and checks each one against an **embedded SHA256 checksum** before use.
 
 ---
 
