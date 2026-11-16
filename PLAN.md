@@ -11,6 +11,9 @@ Status as of 2026-11-16:
 Pi OS Lite 64-bit, install, web UI on port 8080, reboot, database persistence,
 `systemd-analyze security`, Mosquitto active). On success, unmark the GitHub
 pre-release, add the test date to the release notes, README, and this file.
+If the board is not available yet, continue with **P1.7 (Mosquitto
+authentication)** on `main`; the hardware test remains the gate for promoting
+`v2.0.0`.
 
 ## Context for the next session
 
