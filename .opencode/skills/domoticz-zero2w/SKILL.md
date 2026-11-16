@@ -1,5 +1,5 @@
 ---
-name: Domoticz Zero 2 W Installer
+name: domoticz-zero2w
 description: Maintain the setup_domoticz.sh installer for Domoticz on Raspberry Pi Zero 2 W (aarch64) - safe edits, artifact bumps, checks, and releases
 ---
 
