@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# Script to set up the Domoticz environment for RPi Zero W (ARMv6).
-# Assumes a freshly installed Raspberry Pi OS (Legacy, 32-bit) Lite system
+# Set up Domoticz and Mosquitto on a Raspberry Pi Zero 2 W (aarch64).
+# Assumes a freshly installed Raspberry Pi OS Lite 64-bit (Debian 12 or newer)
 # with active Wi-Fi connection and SSH access.
 #
 # All downloaded artifacts are pinned to immutable versions and verified
@@ -12,21 +12,40 @@ set -euo pipefail
 trap 'echo "ERROR: setup failed at line $LINENO. See the output above." >&2' ERR
 
 # --- Pinned artifacts -------------------------------------------------------
-DOMOTICZ_VERSION="2024.4"
-DOMOTICZ_TARBALL_URL="https://github.com/SjoerdNLD/Domoticz-Armv6/releases/download/${DOMOTICZ_VERSION}/domoticz_linux_${DOMOTICZ_VERSION}_armv6.tgz"
-DOMOTICZ_TARBALL_SHA256="f90248a82990f7c403ac6719bae1c670a1a4402a8a43aeb16361171dafd084e3"
+DOMOTICZ_VERSION="2026.4"
+DOMOTICZ_TARBALL_URL="https://github.com/domoticz/domoticz/releases/download/${DOMOTICZ_VERSION}/domoticz_linux_aarch64.tgz"
+DOMOTICZ_TARBALL_SHA256="c7bffff723f2b0c81fcebfd803dfb61ebcf6db06442e93ae36085f2e83f25184"
 
-# Community compilation for ARMv6, pinned to a commit because "main" moves.
-DOMOTICZ_BINARY_COMMIT="b24a421160c101b76bafee4f43b3ee7f60c7468d"
-DOMOTICZ_BINARY_URL="https://raw.githubusercontent.com/PE1DDA/Domoticz-ARMv6/${DOMOTICZ_BINARY_COMMIT}/domoticz"
-DOMOTICZ_BINARY_SHA256="94489b997c937d401d062e442269612dd65a7b0af2fc2c092598521646933cb6"
+# --- Layout -----------------------------------------------------------------
+INSTALL_DIR="/opt/domoticz"
+DATA_DIR="/var/lib/domoticz"
+SERVICE_USER="domoticz"
+HTTP_PORT="8080"
 
-# Minimum free space required in the target home directory.
+# Minimum free space required on the root filesystem.
 MIN_FREE_KB=524288 # 512 MB
 
+TMP_DIR=""
 export DEBIAN_FRONTEND=noninteractive
 
 # --- Helpers ----------------------------------------------------------------
+cleanup() {
+    if [ -n "${TMP_DIR:-}" ] && [ -d "$TMP_DIR" ]; then
+        rm -rf "$TMP_DIR"
+    fi
+}
+
+trap cleanup EXIT
+
+die() {
+    echo "ERROR: $*" >&2
+    exit 1
+}
+
+require_cmd() {
+    command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
 verify_sha256() {
     local file="$1"
     local expected="$2"
@@ -41,151 +60,223 @@ verify_sha256() {
     fi
 }
 
-require_cmd() {
-    if ! command -v "$1" >/dev/null 2>&1; then
-        echo "ERROR: required command '$1' not found." >&2
-        exit 1
+preflight() {
+    [ "${EUID}" -eq 0 ] || die "Run the script with root privileges: sudo ./setup_domoticz.sh"
+
+    local cmd
+    for cmd in apt-get awk basename chmod cp curl cut df find getent hostname install \
+        mktemp openssl rm sha256sum sleep systemctl tar tr useradd; do
+        require_cmd "$cmd"
+    done
+
+    [ "$(uname -m)" = "aarch64" ] \
+        || die "unsupported architecture: $(uname -m). This installer requires 64-bit Raspberry Pi OS (aarch64)."
+
+    [ -r /proc/device-tree/model ] \
+        || die "cannot read /proc/device-tree/model; is this a Raspberry Pi?"
+
+    local model
+    model=$(tr -d '\0' < /proc/device-tree/model)
+    case "$model" in
+        *"Zero 2 W"*) ;;
+        *) die "unsupported board: $model. This installer targets the Raspberry Pi Zero 2 W." ;;
+    esac
+
+    [ -r /etc/os-release ] || die "cannot read /etc/os-release"
+
+    local os_id os_version
+    os_id=$(awk -F= '$1 == "ID" {gsub(/"/, "", $2); print $2}' /etc/os-release)
+    os_version=$(awk -F= '$1 == "VERSION_ID" {gsub(/"/, "", $2); print $2}' /etc/os-release)
+
+    case "$os_id" in
+        debian|raspbian) ;;
+        *) die "unsupported OS: $os_id. Use Raspberry Pi OS Lite 64-bit (Debian 12 or newer)." ;;
+    esac
+
+    [ -n "$os_version" ] || die "cannot determine the OS version from /etc/os-release"
+    [ "${os_version%%.*}" -ge 12 ] \
+        || die "Debian 12 (Bookworm) or newer required; found version $os_version."
+
+    local openssl_major
+    openssl_major=$(openssl version | awk '{print $2}' | cut -d. -f1)
+    [ "$openssl_major" -ge 3 ] \
+        || die "OpenSSL 3 or newer required; found $(openssl version)."
+
+    local free_kb
+    free_kb=$(df -Pk / | awk 'NR == 2 {print $4}')
+    [ "$free_kb" -ge "$MIN_FREE_KB" ] \
+        || die "at least 512 MB free space required on /; found $((free_kb / 1024)) MB."
+}
+
+install_packages() {
+    echo "==> Updating system packages"
+    apt-get update
+    apt-get -y upgrade
+
+    echo "==> Installing runtime dependencies and Mosquitto"
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        libcurl3-gnutls \
+        libmosquitto1 \
+        libsqlite3-0 \
+        libusb-0.1-4 \
+        mosquitto \
+        mosquitto-clients \
+        python3 \
+        tar
+}
+
+download_domoticz() {
+    TMP_DIR=$(mktemp -d)
+
+    echo "==> Downloading Domoticz ${DOMOTICZ_VERSION}"
+    curl -fsSL --retry 3 -o "$TMP_DIR/domoticz.tgz" "$DOMOTICZ_TARBALL_URL"
+
+    echo "==> Verifying checksum"
+    verify_sha256 "$TMP_DIR/domoticz.tgz" "$DOMOTICZ_TARBALL_SHA256"
+
+    echo "==> Extracting release"
+    tar -xzf "$TMP_DIR/domoticz.tgz" -C "$TMP_DIR"
+    [ -x "$TMP_DIR/domoticz/domoticz" ] || die "downloaded archive does not contain the domoticz binary"
+}
+
+prepare_layout() {
+    echo "==> Preparing service account and directories"
+
+    if ! getent passwd "$SERVICE_USER" >/dev/null 2>&1; then
+        useradd --system --user-group --home-dir "$DATA_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
+    fi
+
+    install -d -m 0755 "$INSTALL_DIR"
+    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "$DATA_DIR"
+    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "$DATA_DIR/plugins" "$DATA_DIR/scripts"
+
+    if systemctl is-active --quiet domoticz.service 2>/dev/null; then
+        echo "==> Stopping the running Domoticz service"
+        systemctl stop domoticz.service
     fi
 }
 
-is_installed() {
-    [ "$(dpkg-query -W -f='${db:Status-Abbrev}' "$1" 2>/dev/null)" = "ii " ]
+install_domoticz() {
+    echo "==> Installing Domoticz into ${INSTALL_DIR}"
+    cp -a "$TMP_DIR/domoticz/." "$INSTALL_DIR/"
+    chown -R root:root "$INSTALL_DIR"
+    find "$INSTALL_DIR" -type d -exec chmod 0755 {} +
+    chmod 0755 "$INSTALL_DIR/domoticz"
+
+    if [ -f "$DATA_DIR/domoticz.db" ]; then
+        echo "==> Existing database preserved: $DATA_DIR/domoticz.db"
+    fi
 }
 
-# --- Preconditions ----------------------------------------------------------
-if [ "$EUID" -ne 0 ]; then
-    echo "ERROR: Run the script with root privileges: sudo ./setup_domoticz.sh" >&2
-    exit 1
-fi
+write_service() {
+    local groups=""
+    local group
 
-if [ "$(uname -m)" != "armv6l" ]; then
-    echo "ERROR: this script targets ARMv6 (armv6l), detected: $(uname -m)" >&2
-    exit 1
-fi
+    for group in dialout gpio i2c spi video plugdev input; do
+        if getent group "$group" >/dev/null 2>&1; then
+            groups="${groups}${groups:+ }${group}"
+        fi
+    done
 
-# Detect the invoking user: the script must be run through sudo from a
-# regular account, otherwise there is no sane user to own the installation.
-if [ -z "${SUDO_USER:-}" ] || [ "$SUDO_USER" = "root" ] || ! id -u "$SUDO_USER" >/dev/null 2>&1; then
-    echo "ERROR: run the script as a regular user with sudo (e.g. sudo ./setup_domoticz.sh)." >&2
-    exit 1
-fi
-
-TARGET_USER="$SUDO_USER"
-TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
-
-for cmd in wget tar sha256sum systemctl getent; do
-    require_cmd "$cmd"
-done
-
-FREE_KB=$(df -Pk "$TARGET_HOME" | awk 'NR==2 {print $4}')
-if [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
-    echo "ERROR: not enough free space in $TARGET_HOME (need 512 MB, have $((FREE_KB / 1024)) MB)." >&2
-    exit 1
-fi
-
-echo "=================================================="
-echo " DOMOTICZ INSTALLATION FOR RPI ZERO W"
-echo " User: $TARGET_USER"
-echo " Home directory: $TARGET_HOME"
-echo "=================================================="
-sleep 2
-
-# 1. System update
-echo "[1/7] Updating system (this may take a few minutes)..."
-apt-get update
-apt-get full-upgrade -y
-
-# 2. Legacy libraries required by the Domoticz binary
-echo "[2/7] Installing legacy libraries (libssl1.1, libusb-0.1-4)..."
-if is_installed libssl1.1 && is_installed libusb-0.1-4; then
-    echo "      Both libraries are already installed, skipping the Buster repository."
-else
-    if ! grep -qE '^[^#]*legacy\.raspbian\.org' /etc/apt/sources.list; then
-        echo "deb https://legacy.raspbian.org/raspbian/ buster main contrib non-free rpi" >>/etc/apt/sources.list
+    local supplementary=""
+    if [ -n "$groups" ]; then
+        supplementary="SupplementaryGroups=${groups}"
     fi
-    apt-get update
-    apt-get install -y libssl1.1 libusb-0.1-4
 
-    # Comment the Buster repository out again to keep future upgrades safe.
-    sed -i -E '/^deb .*legacy\.raspbian\.org/s/^/#/' /etc/apt/sources.list
-    apt-get update
-fi
-
-# 3. Download Domoticz (ARMv6 release with WWW files)
-echo "[3/7] Downloading and extracting Domoticz ${DOMOTICZ_VERSION}..."
-cd "$TARGET_HOME"
-wget -q --show-progress -O domoticz_armv6.tgz "$DOMOTICZ_TARBALL_URL"
-verify_sha256 domoticz_armv6.tgz "$DOMOTICZ_TARBALL_SHA256"
-tar -xzf domoticz_armv6.tgz
-rm -f domoticz_armv6.tgz
-
-# 4. Replace the binary with the PE1DDA compilation
-echo "[4/7] Downloading verified ARMv6 binary (PE1DDA, ${DOMOTICZ_BINARY_COMMIT:0:7})..."
-rm -f domoticz.new
-wget -q --show-progress -O domoticz.new "$DOMOTICZ_BINARY_URL"
-verify_sha256 domoticz.new "$DOMOTICZ_BINARY_SHA256"
-chmod 0755 domoticz.new
-mv -f domoticz.new domoticz
-
-# Set permissions for the user
-chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/domoticz" "$TARGET_HOME/www"
-if [ -d "$TARGET_HOME/plugins" ]; then
-    chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/plugins"
-fi
-
-# 5. Create modern systemd service
-echo "[5/7] Configuring systemd service..."
-cat <<EOF >/etc/systemd/system/domoticz.service
+    echo "==> Writing the systemd service"
+    cat > /etc/systemd/system/domoticz.service <<EOF
 [Unit]
 Description=Domoticz Home Automation System
-After=network.target
+Documentation=https://www.domoticz.com/wiki
+After=network-online.target time-sync.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=$TARGET_USER
-WorkingDirectory=$TARGET_HOME
-ExecStart=$TARGET_HOME/domoticz -www 8080
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+${supplementary}
+WorkingDirectory=${DATA_DIR}
+ExecStart=${INSTALL_DIR}/domoticz -userdata ${DATA_DIR} -wwwroot ${INSTALL_DIR}/www -www ${HTTP_PORT} -sslwww 0 -wwwbind 0.0.0.0 -noupdates
+ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=30
+KillMode=process
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# /sys stays writable so GPIO and USB sysfs devices keep working.
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=${DATA_DIR}
+StateDirectory=domoticz
+StateDirectoryMode=0750
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Remove old, faulty init.d script (if exists)
-rm -f /etc/init.d/domoticz.sh
+    chmod 0644 /etc/systemd/system/domoticz.service
+    systemctl daemon-reload
+    systemctl enable domoticz.service
+    systemctl restart domoticz.service
+}
 
-# Start service
-systemctl daemon-reload
-systemctl enable domoticz.service
-systemctl start domoticz.service
+setup_mosquitto() {
+    echo "==> Enabling Mosquitto"
+    systemctl enable --now mosquitto.service
+    systemctl is-active --quiet mosquitto.service \
+        || die "Mosquitto failed to start; check: systemctl status mosquitto.service"
+}
 
-# 6. Install MQTT broker (Mosquitto)
-echo "[6/7] Installing MQTT broker (Mosquitto)..."
-apt-get install -y mosquitto mosquitto-clients
-systemctl enable mosquitto
-systemctl start mosquitto
+verify_installation() {
+    echo "==> Verifying the installation"
 
-# 7. Verification and summary
-echo "[7/7] Verification..."
-sleep 3
-IP_ADDR=$(hostname -I | awk '{print $1}')
-if [ -z "$IP_ADDR" ]; then
-    IP_ADDR="<your-pi-ip>"
-fi
+    systemctl is-active --quiet domoticz.service || {
+        journalctl -u domoticz.service -n 40 --no-pager >&2 || true
+        die "Domoticz service is not running"
+    }
 
-if systemctl is-active --quiet domoticz.service; then
-    echo -e "\n=================================================="
-    echo " SUCCESS! Environment has been set up from scratch."
-    echo " Domoticz panel: http://$IP_ADDR:8080"
-    echo " Default login: admin, password: domoticz"
-    echo "=================================================="
-    echo " WARNING: After logging into Domoticz for the first time,"
-    echo " IMMEDIATELY disable automatic updates in:"
-    echo " Setup -> Settings -> System -> Software Updates!"
-    printf '==================================================\n\n'
-else
-    echo -e "\nERROR: Domoticz service did not start correctly." >&2
-    printf 'Check logs using: sudo journalctl -u domoticz.service -n 50 --no-pager\n\n' >&2
-    exit 1
-fi
+    local attempt ready=0
+    for ((attempt = 1; attempt <= 30; attempt++)); do
+        if curl -fsS -o /dev/null "http://127.0.0.1:${HTTP_PORT}/"; then
+            ready=1
+            break
+        fi
+        sleep 1
+    done
+
+    if [ "$ready" -ne 1 ]; then
+        journalctl -u domoticz.service -n 40 --no-pager >&2 || true
+        die "Domoticz did not answer on http://127.0.0.1:${HTTP_PORT}/"
+    fi
+
+    echo
+    echo "Domoticz ${DOMOTICZ_VERSION} is running."
+    echo "  Web UI:    http://$(hostname -I | awk '{print $1}'):${HTTP_PORT}"
+    echo "  Install:   ${INSTALL_DIR}"
+    echo "  Data:      ${DATA_DIR}"
+    echo "  Logs:      journalctl -u domoticz.service -f"
+    echo
+    echo "Mosquitto is active with the default Debian configuration (localhost only)."
+    echo "Default Domoticz login: admin / domoticz. Change the password immediately."
+}
+
+main() {
+    preflight
+    install_packages
+    download_domoticz
+    prepare_layout
+    install_domoticz
+    write_service
+    setup_mosquitto
+    verify_installation
+}
+
+main "$@"
