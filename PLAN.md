@@ -7,6 +7,11 @@ Status as of 2026-11-16:
   to `main` and published as a pre-release. It awaits a hardware test before
   being promoted to a full release.
 
+**Next action:** test `v2.0.0` on a real Raspberry Pi Zero 2 W (clean Raspberry
+Pi OS Lite 64-bit, install, web UI on port 8080, reboot, database persistence,
+`systemd-analyze security`, Mosquitto active). On success, unmark the GitHub
+pre-release, add the test date to the release notes, README, and this file.
+
 ## Context for the next session
 
 - Target: Raspberry Pi Zero 2 W, 64-bit Raspberry Pi OS Lite (aarch64, Debian
