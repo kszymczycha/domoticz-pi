@@ -3,9 +3,9 @@
 Status as of 2026-11-16:
 
 - `v1.0.0` is the frozen Raspberry Pi Zero W (ARMv6) reference.
-- The current line targets the Raspberry Pi Zero 2 W only: `v2.0.0` is
-  implemented on `feat/zero2w` and awaits a hardware test before merge and
-  release.
+- The current line targets the Raspberry Pi Zero 2 W only: `v2.0.0` is merged
+  to `main` and published as a pre-release. It awaits a hardware test before
+  being promoted to a full release.
 
 ## Context for the next session
 
@@ -103,11 +103,12 @@ Implementation contract:
 
 - [x] `v1.0.0` — Pi Zero W (ARMv6) reference
       (<https://github.com/kszymczycha/domoticz-pi/releases/tag/v1.0.0>)
-- [ ] Test `feat/zero2w` on a real Raspberry Pi Zero 2 W
-- [ ] Merge `feat/zero2w`, tag `v2.0.0`, and publish the release with
-      `setup_domoticz.sh` + `SHA256SUMS`
-- [x] README points at the **v2.0.0 release asset** (valid once the release is
-      published)
+- [x] Merge `feat/zero2w` and tag `v2.0.0`
+- [x] Publish `v2.0.0` as a **pre-release** with `setup_domoticz.sh` +
+      `SHA256SUMS` (<https://github.com/kszymczycha/domoticz-pi/releases/tag/v2.0.0>)
+- [ ] Test `v2.0.0` on a real Raspberry Pi Zero 2 W, record the test date, and
+      promote it to a full release
+- [x] README points at the **v2.0.0 release asset**
 - Note: do not host Domoticz binaries in releases — GPLv3 requires offering the
   source
 
@@ -180,7 +181,8 @@ Acceptance criteria:
 
 ## Suggested order
 
-1. **P2.11 (v2.0.0)** — test on a real Zero 2 W, merge, tag, release
+1. **P2.11 (v2.0.0)** — test the pre-release on a real Zero 2 W and promote it
+   to a full release
 2. **7** — Mosquitto auth (code + README MQTT section)
 3. **9 + 12** — README only (MQTT firewall hint, Tested on, License)
 4. **13–16** — device integrations (docs + optional helpers), released as v2.1.0
@@ -267,8 +269,9 @@ Rules:
 
 - While the repository has a single maintainer, documentation and small fixes go
   straight to `main` after a green CI run.
-- The Zero 2 W port lives on `feat/zero2w`. Merge only after a successful test on
-  a real Raspberry Pi Zero 2 W; tag and publish `v2.0.0` in the same session.
+- The Zero 2 W port is merged on `main`. `v2.0.0` stays a pre-release until a
+  successful test on a real Raspberry Pi Zero 2 W; promote it to a full release
+  afterwards. Fix forward with patch releases if the test finds issues.
 - `maint/1.x` is frozen. Do not use it for new work.
 - Keep `main` releasable; never force-push `main` except for history rewrites
   agreed in advance.

@@ -35,6 +35,10 @@ Before running the script, ensure that:
 
 ## 🚀 Installation
 
+> **Pre-release:** `v2.0.0` has been validated with ShellCheck and checksum
+> checks, but not yet on physical hardware. It stays marked as a pre-release on
+> GitHub until the hardware test passes.
+
 **Step 1: Download the script and checksums**
 
 ```bash
