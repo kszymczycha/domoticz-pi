@@ -1,33 +1,41 @@
 # Development Roadmap
 
-Status as of 2026-11-16 (release: `v1.0.0` — Raspberry Pi Zero W / ARMv6 reference;
-further work continues on `main`).
+Status as of 2026-11-16:
+
+- `v1.0.0` is the frozen Raspberry Pi Zero W (ARMv6) reference.
+- The current line targets the Raspberry Pi Zero 2 W only: `v2.0.0` is
+  implemented on `feat/zero2w` and awaits a hardware test before merge and
+  release.
 
 ## Context for the next session
 
-- All repository content (README, PLAN, code comments, commit messages) is
-  written in English.
-- The script performs seven steps: system update -> legacy libraries -> extract
-  release -> swap in the ARMv6 binary -> systemd service -> Mosquitto -> verify.
-  Keep that order.
-- Local checks: `bash -n setup_domoticz.sh` plus CI ShellCheck. ShellCheck is not
-  installed locally; the workflow on `ubuntu-latest` is the authoritative check.
+- Target: Raspberry Pi Zero 2 W, 64-bit Raspberry Pi OS Lite (aarch64, Debian
+  12 or newer; Trixie is current), with SSH access and a `sudo` user.
+- The script performs eight steps: preflight validation -> system update and
+  dependencies -> download and verify the pinned release -> service account and
+  directories -> install files -> systemd unit -> Mosquitto -> verify.
 - Pinned artifacts live at the top of `setup_domoticz.sh`. To bump Domoticz,
-  update the version/URL and recompute the checksums:
+  update the version, URL, and SHA256 together:
 
   ```bash
   curl -sSL -o /tmp/domoticz.tgz "$DOMOTICZ_TARBALL_URL"
-  curl -sSL -o /tmp/domoticz.bin "$DOMOTICZ_BINARY_URL"
-  sha256sum /tmp/domoticz.tgz /tmp/domoticz.bin
+  curl -sSL -o /tmp/domoticz.tgz.sha256sum \
+    "https://github.com/domoticz/domoticz/releases/download/<version>/domoticz_linux_aarch64.tgz.sha256sum"
+  sha256sum /tmp/domoticz.tgz
+  cat /tmp/domoticz.tgz.sha256sum
   ```
 
-  Then update both constants and commit the bump as one change.
+- `v1.0.0` is frozen: do not add ARMv6 support back, and do not maintain
+  `maint/1.x`.
+- Layout: application files are root-owned in `/opt/domoticz`; the database,
+  plugins, scripts, and backups are in `/var/lib/domoticz`; logs go to the
+  journal.
+- The internal Domoticz updater is disabled with `-noupdates`; upgrades happen
+  only by bumping the pinned release.
 - Do NOT: host Domoticz binaries in releases (GPLv3 source obligation), use
   mutable URLs, or reintroduce CRLF line endings.
-- The README downloads the pinned `v1.0.0` release asset. Never point users
-  back at `main` for installation.
 - `git log` is the source of truth for status; the Done list below is a snapshot.
-- Maintenance procedure: `.opencode/skills/domoticz-armv6/SKILL.md`; keep it in
+- Maintenance procedure: `.opencode/skills/domoticz-zero2w/SKILL.md`; keep it in
   sync with this plan.
 
 ## Done
@@ -36,29 +44,37 @@ further work continues on `main`).
 - [x] README cleanup (removed draft artifact) and correct file permissions
 - [x] Line endings normalized to LF + `.gitattributes` (CRLF previously broke the `#!` line)
 - [x] **P0.1** `set -euo pipefail` + `trap ... ERR` reporting the failing line
-- [x] **P0.2** Idempotent adding/commenting of the Buster repository
-- [x] **P0.3** Pinned artifacts (commit `b24a421…`, version `2024.4`) + SHA256 verification
-- [x] **P0.4** Validation of `armv6l`, `SUDO_USER`, required commands, free space (512 MB)
+- [x] **P0.2** Idempotent adding/commenting of the Buster repository (obsolete in v2)
+- [x] **P0.3** Pinned artifacts + SHA256 verification
+- [x] **P0.4** Validation of architecture, required commands, and free space
 - [x] **P0.5** `DEBIAN_FRONTEND=noninteractive`
-- [x] **P1.6** Safe `TARGET_USER` detection (`getent`, no `admin` fallback)
+- [x] **P1.6** Safe service-user detection (v2 uses a dedicated `domoticz` system user)
 - [x] **P2.10** ShellCheck CI (`.github/workflows/shellcheck.yml`)
+- [x] **P2.11 (v1.0.0)** Tag and GitHub release for the Pi Zero W reference
+- [x] **v2.0.0 port** Domoticz 2026.4 aarch64, platform validation, no ARMv6
+      workarounds, pinned artifact and checksum
+- [x] **P1.8 (layout)** `/opt/domoticz`, `/var/lib/domoticz`, dedicated system
+      user, hardened unit, journal logging
+- [x] README: current board/OS, install from the release asset, layout, backup,
+      database migration, firewall hint, uninstall
 
 ## P1 — Reliability and security
 
 ### 7. Mosquitto configuration
 
-The broker is currently only installed. To do:
+The broker is installed and enabled, but authentication is not configured yet:
 
 - [ ] `/etc/mosquitto/conf.d/domoticz.conf`: `allow_anonymous false`, `password_file /etc/mosquitto/passwd`
 - [ ] Add `--mqtt-lan` and `--help` flags to the installer
 - [ ] Create the `domoticz` MQTT user with a generated password (`openssl rand -hex 16`), printed once; skip creation if the password file already exists
-- [ ] Require `openssl` (add it to the `require_cmd` checks)
-- [ ] `listener 1883 0.0.0.0` only behind `--mqtt-lan` (see Decisions)
+- [ ] Require `openssl` (already used for the version check)
+- [ ] `listener 1883 0.0.0.0` only behind `--mqtt-lan`
 - [ ] Restart Mosquitto after writing the config and verify auth: anonymous publish rejected, authenticated publish accepted
 - [ ] README: how to add the broker as a "hardware" entry in Domoticz and how to add more devices
 - [ ] README: clear warning that enabling auth requires configuring credentials in Domoticz/ESP, otherwise things stop working
 
-Out of scope: TLS — its performance cost on a Pi Zero is disproportionate for a home LAN.
+Out of scope: TLS — its performance cost on a Pi Zero 2 W is still
+disproportionate for a home LAN.
 
 Implementation contract:
 
@@ -75,44 +91,30 @@ Implementation contract:
   - `mosquitto_pub` with the generated credentials succeeds;
   - `ss -ltn` shows `127.0.0.1:1883` without the flag and `0.0.0.0:1883` with it.
 
-### 8. Separate binary, data and logs
-
-Everything currently lands in `$HOME`. Target layout:
-
-- [ ] `/opt/domoticz` — binary, `www`, `plugins`, `dzVents`, `scripts`
-- [ ] `/var/lib/domoticz` — `domoticz.db`, logs
-- [ ] Dedicated `domoticz` system user instead of a login account
-- [ ] Unit hardening: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome=true`, `ReadWritePaths=/var/lib/domoticz`
-- [ ] Logrotate for file-based logs (if Domoticz writes to `domoticz.log`)
-- [ ] Migration path from the old `$HOME` install: detect `domoticz.db`, back it up, move it
-- [ ] Migration policy — see Decisions (automatic migration with a timestamped backup)
-
-**Risk: high.** Requires testing on a real Pi Zero; do it on a separate branch.
-
 ### 9. Network exposure and default credentials
 
-- [ ] README: port 8080 listens on `0.0.0.0`; show `ufw allow from <LAN> to any port 8080`
-- [ ] README: stronger warning about `admin/domoticz`
+- [x] README: port 8080 listens on `0.0.0.0`; show `ufw allow from <LAN> to any port 8080`
+- [x] README: stronger warning about `admin/domoticz`
 - [ ] With `--mqtt-lan`, print the `ufw` rule for port 1883 and warn if the firewall is inactive (never install `ufw` silently)
 
 ## P2 — Versioning and documentation
 
 ### 11. Tag and GitHub Release
 
-- [x] `git tag -a v1.0.0` on the release commit (local; the reference build for
-      Raspberry Pi Zero W)
-- [x] Push the tag and publish the GitHub release with assets:
-      `setup_domoticz.sh` + `SHA256SUMS`
+- [x] `v1.0.0` — Pi Zero W (ARMv6) reference
       (<https://github.com/kszymczycha/domoticz-pi/releases/tag/v1.0.0>)
-- [x] README: download the script from the **v1.0.0 release asset** instead of
-      `main`
+- [ ] Test `feat/zero2w` on a real Raspberry Pi Zero 2 W
+- [ ] Merge `feat/zero2w`, tag `v2.0.0`, and publish the release with
+      `setup_domoticz.sh` + `SHA256SUMS`
+- [x] README points at the **v2.0.0 release asset** (valid once the release is
+      published)
 - Note: do not host Domoticz binaries in releases — GPLv3 requires offering the
   source
 
 ### 12. README
 
-- [ ] "Tested on" section: date, Pi model, Raspberry Pi OS version, Domoticz version
-- [ ] "Uninstall" section: `systemctl disable`, remove files, revert the Buster repository entry, `apt remove mosquitto`
+- [ ] "Tested on" section: date, board, Raspberry Pi OS version, Domoticz version
+- [x] "Uninstall" section
 - [ ] "License" section → `LICENSE` (MIT)
 - [ ] Panel screenshot (optional)
 
@@ -131,8 +133,8 @@ Do not bloat `setup_domoticz.sh` with device-specific logic.
       (MQTT bridge, local API, Matter, cloud-only)
 - [ ] Inventory the Tuya Wi-Fi devices and check whether local keys can be
       extracted
-- [ ] Decide whether the Zigbee stack runs on the Pi Zero W or on a more capable
-      always-on host
+- [ ] Decide whether the Zigbee stack runs on the Pi Zero 2 W or on a more
+      capable always-on host
 
 Open questions:
 
@@ -141,7 +143,7 @@ Open questions:
 - Is cloud dependency acceptable for Tuya Wi-Fi devices, or is local-only
   control required?
 - Is there a spare always-on host for Zigbee2MQTT, or must everything run on the
-  Pi Zero W (512 MB RAM)?
+  Pi Zero 2 W (512 MB RAM)?
 
 ### 14. Tuya Wi-Fi
 
@@ -157,8 +159,8 @@ Open questions:
 - [ ] If the gateway exposes MQTT, bridge it to Domoticz through Mosquitto
 - [ ] Otherwise document the supported path (Zigbee2MQTT coordinator, deCONZ, or
       the gateway's cloud)
-- [ ] Resource check: Zigbee2MQTT (Node.js) is heavy for a Pi Zero W; prefer an
-      external host and enable `--mqtt-lan`
+- [ ] Resource check: Zigbee2MQTT (Node.js) is still heavy for a Zero 2 W;
+      prefer an external host and enable `--mqtt-lan`
 - [ ] Document pairing and device naming in Domoticz
 
 ### 16. Security and operations
@@ -178,22 +180,21 @@ Acceptance criteria:
 
 ## Suggested order
 
-1. **7** — Mosquitto (code + README MQTT section), so documentation matches behavior
-2. **9 + 12** — README only (firewall, Uninstall, Tested on, License)
-3. **11** — tag/release once behavior is final (installer v1.0.0)
-4. **13–16** — device integrations (docs + optional helpers), released as v1.1.0
-5. **8** — last, separate branch, tested on the device
+1. **P2.11 (v2.0.0)** — test on a real Zero 2 W, merge, tag, release
+2. **7** — Mosquitto auth (code + README MQTT section)
+3. **9 + 12** — README only (MQTT firewall hint, Tested on, License)
+4. **13–16** — device integrations (docs + optional helpers), released as v2.1.0
 
 ## Acceptance criteria
 
+- **v2.0.0:** a fresh Raspberry Pi OS Lite 64-bit install succeeds on a Zero 2 W;
+  an existing `/var/lib/domoticz/domoticz.db` is preserved; the web UI answers on
+  port 8080 after a reboot; the service starts under the `domoticz` user; the
+  unit passes a `systemd-analyze security` review; Mosquitto is active.
 - **7 (Mosquitto):** anonymous publish is rejected; publishing with the generated
   credentials succeeds; re-running the installer does not rotate credentials; the
   listener is localhost-only without `--mqtt-lan` and `0.0.0.0` with it; the
   documented Domoticz setup works on a fresh install.
-- **8 (Layout):** a fresh install runs from `/opt/domoticz` and
-  `/var/lib/domoticz`; an existing `$HOME` install migrates with a timestamped
-  database backup and aborts if the backup cannot be created; the service passes
-  `systemd-analyze security` review.
 - **9 / 12:** README-only changes; acceptance means the documented commands work
   on a fresh install.
 
@@ -208,62 +209,67 @@ Decided on 2026-11-12:
   explicit `--mqtt-lan` flag, which adds `listener 1883 0.0.0.0` together with
   authentication and a firewall hint.
 - **`PLAN.md`:** stays in the repository while the project is small.
-- **Layout migration (P1.8):** detect an existing `$HOME/domoticz.db`, create a
-  timestamped backup, then migrate to `/var/lib/domoticz`; abort with
-  instructions if the backup fails. Never silently overwrite an existing
-  database.
+
+Decided on 2026-11-16:
+
+- **Drop the Pi Zero W:** after the `v1.0.0` reference release, the project
+  targets the Raspberry Pi Zero 2 W only. `maint/1.x` is end-of-life and receives
+  no backports.
+- **OS baseline:** 64-bit Raspberry Pi OS Lite, Debian 12 or newer, OpenSSL 3.
+  The installer rejects `armv6l` and `armv7l`.
+- **Official artifacts:** use the upstream Domoticz `aarch64` release instead of
+  the community ARMv6 binary and the Buster `libssl1.1` workaround.
+- **Layout (P1.8):** adopt `/opt/domoticz` + `/var/lib/domoticz` in `v2.0.0`
+  together with a dedicated system user and a hardened unit. There is no
+  automatic migration from the old `$HOME` layout; moving `domoticz.db` is a
+  documented manual step.
+- **Logging:** use the systemd journal; no file-based logrotate rule.
 
 ## Versioning and hardware support
 
-One release line, and hardware support is detected at runtime — never branched
-per board. `main` always carries the newest release that supports every
-supported board.
+One release line for one supported board family. Hardware support is validated
+at install time, not branched per board.
 
 Semantic versioning for this project (the "public API" is the CLI, the install
 layout, and the database location):
 
 | Change | Bump |
 | --- | --- |
-| New board support, new flag, new feature | minor |
+| New compatible feature or flag | minor |
 | Pinned artifact bump, bug fix, wording | patch |
 | Install layout change, removed flag, dropped board support | major |
 
 Release lines:
 
-- **`v1.0.0`** — frozen reference build for Raspberry Pi Zero W (ARMv6 only).
-  The tag message and release title record that scope.
-- **`maint/1.x`** — branch created at `v1.0.0`. Critical fixes only, forwarded
-  from `main` with `git cherry-pick -x`; patch releases are `v1.0.N`. No feature
-  work and never merge `main` into it wholesale. Support for this line lasts at
-  least until 2027-05-16, or until `v1.1.0` is proven on a Pi Zero W, whichever
-  is later.
-- **`main`** — Pi Zero 2 W support lands here as `v1.1.0` (minor) while ARMv6
-  stays supported. A runtime `detect_platform()` selects the artifact set
-  (`armv6l` keeps the community binary; `armv7l`/`aarch64` use upstream
-  Domoticz). Each architecture keeps its own pinned URL and SHA256.
-- **`v2.0.0`** — reserved for the P1.8 layout change (`/opt`, `/var/lib`), which
-  is breaking.
+- **`v1.0.0`** — frozen reference for the Raspberry Pi Zero W (ARMv6 only).
+  Historical, unsupported, and never deleted. Use it to roll back the old
+  hardware.
+- **`maint/1.x`** — end-of-life branch kept for history. Do not merge into it or
+  cherry-pick fixes.
+- **`main`** — the Raspberry Pi Zero 2 W line. `v2.0.0` is the first release
+  (aarch64, `/opt` layout). Future releases are `v2.x.y`; dropping Zero 2 W
+  support or changing the layout again requires a new major.
+- **`v3.0.0`** — reserved for the next breaking change, if any.
 
 Rules:
 
-- One artifact supports all supported boards; no permanent `zero-w` / `zero2w`
-  branches and no hardware suffix in tag names.
+- No permanent per-board branches and no hardware suffix in tag names; the tag
+  message and release notes record the supported board and OS.
 - Annotated tags for every release (`git tag -a`, sign once a GPG key is
   configured); protect `v*` tags and push the explicit tag ref.
-- Release notes state the supported boards, Domoticz version, Raspberry Pi OS
+- Release notes state the supported board, Domoticz version, Raspberry Pi OS
   version, and the test date.
-- Rolling back: `git switch --detach v1.0.0`, or install from the pinned release
-  asset. Keep a tested copy of the installer on the device for offline recovery.
+- Rolling back: `git switch --detach v1.0.0` for the old board, or install from
+  the pinned release asset. Keep a tested copy of the installer on the device for
+  offline recovery.
 
 ## Branch workflow
 
-- While the repository has a single maintainer, P1.7, P2.9, P2.11, P2.12 and
-  P3 documentation changes go straight to `main` after a green CI run.
-- Pi Zero 2 W work: branch `feat/zero2w` from `main`; merge only after it has
-  been tested on both a Pi Zero W and a Pi Zero 2 W.
-- P1.8: branch `refactor/layout`, manual test on a real Pi Zero, merge only after
-  that test passes.
-- `maint/1.x` follows the rules in "Versioning and hardware support".
+- While the repository has a single maintainer, documentation and small fixes go
+  straight to `main` after a green CI run.
+- The Zero 2 W port lives on `feat/zero2w`. Merge only after a successful test on
+  a real Raspberry Pi Zero 2 W; tag and publish `v2.0.0` in the same session.
+- `maint/1.x` is frozen. Do not use it for new work.
 - Keep `main` releasable; never force-push `main` except for history rewrites
   agreed in advance.
 
@@ -273,4 +279,5 @@ Rules:
 - `shellcheck setup_domoticz.sh` (zero findings) — install it locally
   (`sudo apt-get install shellcheck`) or rely on the CI workflow
 - failure-path test: running without root exits with code 1
-- after install-flow changes: test on a real Pi Zero W with Raspberry Pi OS (Legacy, 32-bit) Lite
+- after install-flow changes: test on a real Raspberry Pi Zero 2 W with
+  Raspberry Pi OS Lite 64-bit (Debian 12 or newer)
