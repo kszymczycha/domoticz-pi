@@ -25,10 +25,10 @@ Before running the script, ensure that:
 ## 🚀 Installation
 
 **Step 1: Download the script**
-Clone the repository or download the `setup_domoticz.sh` file directly to your Raspberry Pi:
+Download the `setup_domoticz.sh` asset from the pinned **v1.0.0** release (Raspberry Pi Zero W / ARMv6 only). Do not use `main`: it is a moving target.
 
 ```bash
-wget https://raw.githubusercontent.com/kszymczycha/domoticz-pi/main/setup_domoticz.sh
+wget https://github.com/kszymczycha/domoticz-pi/releases/download/v1.0.0/setup_domoticz.sh
 ```
 
 **Step 2: Make it executable**

@@ -61,14 +61,22 @@ artifacts, updating the README/PLAN, or preparing a release for
 
 ## Release
 
-1. Confirm CI is green on `main`.
-2. `git tag -a vX.Y.Z -m "<summary>"` and push the tag.
+1. Confirm CI is green on `main` and that every supported board was tested.
+2. `git tag -a vX.Y.Z -m "<summary>"` and push the explicit tag ref.
 3. Create a GitHub release with `setup_domoticz.sh` and `SHA256SUMS` assets.
-4. Point the README download URL at the release, not at `main`.
+   Name the supported boards and the test date in the release notes.
+4. Point the README download URL at the pinned release asset, not at `main`.
 
 ## Git rules
 
-- Short, imperative commit messages in English.
+- Short, imperative commit messages in English, scoped by board when relevant
+  (`feat(zero2w):`, `fix(armv6):`).
+- `v1.0.0` is the frozen Raspberry Pi Zero W (ARMv6) reference. Critical
+  `1.0.x` fixes go through `maint/1.x` with `git cherry-pick -x`; never merge
+  `main` into it wholesale.
+- New board support is a minor release on `main` with runtime platform
+  detection. Do not create permanent per-board branches or hardware-suffixed
+  tags.
 - `main` stays releasable; do not force-push it except for an agreed history
   rewrite.
 - Update `PLAN.md` checkboxes when an item is completed.

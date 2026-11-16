@@ -1,6 +1,7 @@
 # Development Roadmap
 
-Status as of 2026-11-12 (code state: `f424e12`, `Harden ARMv6 setup script and add ShellCheck CI`).
+Status as of 2026-11-16 (release: `v1.0.0` — Raspberry Pi Zero W / ARMv6 reference;
+further work continues on `main`).
 
 ## Context for the next session
 
@@ -23,7 +24,8 @@ Status as of 2026-11-12 (code state: `f424e12`, `Harden ARMv6 setup script and a
   Then update both constants and commit the bump as one change.
 - Do NOT: host Domoticz binaries in releases (GPLv3 source obligation), use
   mutable URLs, or reintroduce CRLF line endings.
-- Known gap until P2.11: the README still downloads the script from `main`.
+- The README downloads the pinned `v1.0.0` release asset. Never point users
+  back at `main` for installation.
 - `git log` is the source of truth for status; the Done list below is a snapshot.
 - Maintenance procedure: `.opencode/skills/domoticz-armv6/SKILL.md`; keep it in
   sync with this plan.
@@ -97,10 +99,14 @@ Everything currently lands in `$HOME`. Target layout:
 
 ### 11. Tag and GitHub Release
 
-- [ ] `git tag -a v1.0.0` + push tags
-- [ ] Release with assets: `setup_domoticz.sh` + `SHA256SUMS`
-- [ ] README: download the script from the **release** instead of `main` (today `main` is another mutable URL)
-- [ ] Do not host Domoticz binaries in releases — GPLv3 requires offering the source
+- [x] `git tag -a v1.0.0` on the release commit (local; the reference build for
+      Raspberry Pi Zero W)
+- [ ] Push the tag and publish the GitHub release with assets:
+      `setup_domoticz.sh` + `SHA256SUMS`
+- [x] README: download the script from the **v1.0.0 release asset** instead of
+      `main`
+- Note: do not host Domoticz binaries in releases — GPLv3 requires offering the
+  source
 
 ### 12. README
 
@@ -206,12 +212,57 @@ Decided on 2026-11-12:
   instructions if the backup fails. Never silently overwrite an existing
   database.
 
+## Versioning and hardware support
+
+One release line, and hardware support is detected at runtime — never branched
+per board. `main` always carries the newest release that supports every
+supported board.
+
+Semantic versioning for this project (the "public API" is the CLI, the install
+layout, and the database location):
+
+| Change | Bump |
+| --- | --- |
+| New board support, new flag, new feature | minor |
+| Pinned artifact bump, bug fix, wording | patch |
+| Install layout change, removed flag, dropped board support | major |
+
+Release lines:
+
+- **`v1.0.0`** — frozen reference build for Raspberry Pi Zero W (ARMv6 only).
+  The tag message and release title record that scope.
+- **`maint/1.x`** — branch created at `v1.0.0`. Critical fixes only, forwarded
+  from `main` with `git cherry-pick -x`; patch releases are `v1.0.N`. No feature
+  work and never merge `main` into it wholesale. Support for this line lasts at
+  least until 2027-05-16, or until `v1.1.0` is proven on a Pi Zero W, whichever
+  is later.
+- **`main`** — Pi Zero 2 W support lands here as `v1.1.0` (minor) while ARMv6
+  stays supported. A runtime `detect_platform()` selects the artifact set
+  (`armv6l` keeps the community binary; `armv7l`/`aarch64` use upstream
+  Domoticz). Each architecture keeps its own pinned URL and SHA256.
+- **`v2.0.0`** — reserved for the P1.8 layout change (`/opt`, `/var/lib`), which
+  is breaking.
+
+Rules:
+
+- One artifact supports all supported boards; no permanent `zero-w` / `zero2w`
+  branches and no hardware suffix in tag names.
+- Annotated tags for every release (`git tag -a`, sign once a GPG key is
+  configured); protect `v*` tags and push the explicit tag ref.
+- Release notes state the supported boards, Domoticz version, Raspberry Pi OS
+  version, and the test date.
+- Rolling back: `git switch --detach v1.0.0`, or install from the pinned release
+  asset. Keep a tested copy of the installer on the device for offline recovery.
+
 ## Branch workflow
 
 - While the repository has a single maintainer, P1.7, P2.9, P2.11, P2.12 and
   P3 documentation changes go straight to `main` after a green CI run.
+- Pi Zero 2 W work: branch `feat/zero2w` from `main`; merge only after it has
+  been tested on both a Pi Zero W and a Pi Zero 2 W.
 - P1.8: branch `refactor/layout`, manual test on a real Pi Zero, merge only after
   that test passes.
+- `maint/1.x` follows the rules in "Versioning and hardware support".
 - Keep `main` releasable; never force-push `main` except for history rewrites
   agreed in advance.
 
