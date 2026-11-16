@@ -101,8 +101,9 @@ Everything currently lands in `$HOME`. Target layout:
 
 - [x] `git tag -a v1.0.0` on the release commit (local; the reference build for
       Raspberry Pi Zero W)
-- [ ] Push the tag and publish the GitHub release with assets:
+- [x] Push the tag and publish the GitHub release with assets:
       `setup_domoticz.sh` + `SHA256SUMS`
+      (<https://github.com/kszymczycha/domoticz-pi/releases/tag/v1.0.0>)
 - [x] README: download the script from the **v1.0.0 release asset** instead of
       `main`
 - Note: do not host Domoticz binaries in releases — GPLv3 requires offering the
