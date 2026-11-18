@@ -33,11 +33,35 @@ Before running the script, ensure that:
 
 ---
 
+## ✅ Tested on
+
+This tree is **`v2.1.0-rc1`**, a release candidate. It has passed static checks
+(ShellCheck, `bash -n`, CLI behaviour) but **nothing below has been confirmed on
+physical hardware yet**.
+
+| Component | Environment | Status |
+| --- | --- | --- |
+| Board | Raspberry Pi Zero 2 W (aarch64) | PENDING HARDWARE TEST |
+| OS | Raspberry Pi OS Lite 64-bit, Debian 12+ (Trixie) | PENDING HARDWARE TEST |
+| Domoticz | 2026.4 (pinned) | PENDING HARDWARE TEST |
+| MQTT authentication (`--mqtt-lan`, password file, listener checks) | Mosquitto from Debian | PENDING HARDWARE TEST |
+| Tailscale step (`--tailscale`, `tailscaled` active) | Official Tailscale repository | PENDING HARDWARE TEST |
+| Zigbee2MQTT container on Podman (Quadlet `AddDevice`, `Memory=200m`, dongle re-plug) | Podman on Trixie, image `2.14.3` | PENDING HARDWARE TEST |
+| Coordinator firmware and adapter reported in the Z2M log (8.0.2, `ember` at 115200) | SONOFF Dongle Plus MG24 | PENDING HARDWARE TEST |
+| Domoticz MQTT Auto Discovery field names and per-device coverage (sockets, relays, sensors) | Domoticz 2026.4 AD gateway | PENDING HARDWARE TEST |
+| Pairing window over MQTT (`{"time": 254}`) | Zigbee2MQTT 2.14.3 | PENDING HARDWARE TEST |
+| Memory cap behaviour under pairing load (512 MB board) | Podman `Memory=200m` | PENDING HARDWARE TEST |
+
+The corresponding items in [`PLAN.md`](PLAN.md) and the `Device Support` table in
+[`docs/zigbee2mqtt.md`](docs/zigbee2mqtt.md) are updated when a row is verified.
+
+---
+
 ## 🚀 Installation
 
-> **Pre-release:** `v2.0.0` has been validated with ShellCheck and checksum
-> checks, but not yet on physical hardware. It stays marked as a pre-release on
-> GitHub until the hardware test passes.
+> **Release candidate:** this tree prepares `v2.1.0-rc1`. `v2.0.0` remains the
+> published pre-release, so the download links below still point at it until the
+> RC is published. See "Tested on" above for the hardware status.
 
 **Step 1: Download the script and checksums**
 

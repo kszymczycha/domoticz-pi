@@ -7,11 +7,11 @@ Status as of 2026-11-16:
   to `main` and published as a pre-release. It awaits a hardware test before
   being promoted to a full release.
 
-**Next action:** test `feat/mqtt-auth` on a real Zero 2 W (fresh install, `--help`,
-unknown flag exits 2, anonymous publish rejected, credentials printed once,
-re-run leaves them unchanged, `--mqtt-lan` adds and removes the listener), then
-merge it to `main`. `docs/zigbee2mqtt.md` and `docs/tailscale.md` are written;
-the remaining Zigbee items need the dongle.
+**Next action:** publish `v2.1.0-rc1` from `release/v2.1.0` as a pre-release
+(`setup_domoticz.sh` + `SHA256SUMS`). Once the board and the dongle are
+available, run the `PENDING HARDWARE TEST` list from the README, then update
+those rows, the `CHANGELOG` pending list, and tag `v2.1.0`. `feat/mqtt-auth`
+still needs its own hardware check before it can be considered stable.
 
 ## Context for the next session
 
@@ -163,12 +163,20 @@ node cuts access immediately.
 - [ ] Test `v2.0.0` on a real Raspberry Pi Zero 2 W, record the test date, and
       promote it to a full release
 - [x] README points at the **v2.0.0 release asset**
+- [x] `release/v2.1.0` prepared: `feat/mqtt-auth`, `feat/zigbee-docs`, and
+      `feat/tailscale-flag` merged, `CHANGELOG.md` written, README "Tested on"
+      filled with `PENDING HARDWARE TEST`
+- [ ] Publish `v2.1.0-rc1` as a **pre-release** (script + `SHA256SUMS`), then run
+      the hardware test list from `README.md`
+- [ ] Promote to `v2.1.0`: update the "Tested on" rows and the `CHANGELOG`
+      pending list with the test date and results
 - Note: do not host Domoticz binaries in releases — GPLv3 requires offering the
   source
 
 ### 12. README
 
-- [ ] "Tested on" section: date, board, Raspberry Pi OS version, Domoticz version
+- [x] "Tested on" section: board, OS, Domoticz/Z2M versions, each row marked
+      `PENDING HARDWARE TEST` until the release candidate is validated
 - [x] "Uninstall" section
 - [x] "License" section → `LICENSE` (MIT)
 - [x] Documentation index pointing at `docs/zigbee2mqtt.md` and `docs/tailscale.md`
@@ -513,6 +521,9 @@ Release lines:
 - **`main`** — the Raspberry Pi Zero 2 W line. `v2.0.0` is the first release
   (aarch64, `/opt` layout). Future releases are `v2.x.y`; dropping Zero 2 W
   support or changing the layout again requires a new major.
+- **`v2.1.0`** — MQTT authentication, the Zigbee2MQTT path (documented;
+  Zigbee2MQTT itself runs as a container), and the optional Tailscale step.
+  Currently `v2.1.0-rc1` on `release/v2.1.0`, pending the hardware test.
 - **`v3.0.0`** — the containerised layout (rootful Podman: Domoticz, Mosquitto,
   Zigbee2MQTT). Changing the install layout again or dropping Zero 2 W support
   requires a further major.
