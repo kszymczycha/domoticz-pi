@@ -64,6 +64,7 @@ Optional flags:
 | Flag | Effect |
 | --- | --- |
 | `--mqtt-lan` | Let the broker listen on `0.0.0.0:1883` (authentication is always on) |
+| `--tailscale` | Install Tailscale and enable `tailscaled`; the node is not logged in automatically |
 | `-h`, `--help` | Print usage and exit |
 
 An unknown flag exits with code 2. Re-running the installer is safe: it never
@@ -94,6 +95,11 @@ depending on your SD card speed and internet connection.
    end. Anonymous clients are rejected.
 8. **Verifies the result:** the service is active, the web interface answers on
    port 8080, an anonymous MQTT publish fails, and an authenticated one succeeds.
+
+With `--tailscale` it additionally adds the official Tailscale repository,
+installs the package, enables `tailscaled`, and prints the `tailscale up`
+command to run. Logging in stays a manual step so the auth key never passes
+through the installer.
 
 Application files are never downloaded from a moving URL, and the internal
 Domoticz updater is disabled so the pinned version cannot drift.
