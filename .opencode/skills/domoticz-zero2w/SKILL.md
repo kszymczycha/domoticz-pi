@@ -130,6 +130,40 @@ Release candidates ship first; the final tag waits for the hardware test.
 6. Regenerate `SHA256SUMS` from the exact tagged `setup_domoticz.sh`; never reuse
    an older checksum after touching the script.
 
+### Publishing without `gh`
+
+`gh` is not installed on every host that maintains this repository. The GitHub
+API works with the same credentials git already uses:
+
+```bash
+token=$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill \
+  | sed -n 's/^password=//p')
+
+# 1. Create the pre-release. Body comes from a JSON-encoded notes file.
+curl -fsS -X POST \
+  -H "Authorization: Bearer ${token}" \
+  -H "Accept: application/vnd.github+json" \
+  https://api.github.com/repos/kszymczycha/domoticz-pi/releases \
+  -d @release.json          # tag_name, name, body, draft=false, prerelease=true
+
+# 2. Upload each asset (binary body, one call per file).
+curl -fsS -X POST \
+  -H "Authorization: Bearer ${token}" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @setup_domoticz.sh \
+  "https://uploads.github.com/repos/kszymczycha/domoticz-pi/releases/<ID>/assets?name=setup_domoticz.sh"
+```
+
+Rules for this path:
+
+- Build `release.json` with `python3`/`json.dumps` so the Markdown body is escaped
+  correctly; a shell heredoc breaks on quotes.
+- Upload assets **one at a time** and check each response; a failed upload leaves
+  a release with missing assets (happened with rc1).
+- Verify afterwards by downloading from the release URL and running
+  `sha256sum -c SHA256SUMS`, not by trusting the API response.
+- Never echo the token; keep it in a shell variable.
+
 ## Git rules
 
 - Short, imperative commit messages in English.

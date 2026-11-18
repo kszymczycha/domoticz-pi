@@ -15,6 +15,13 @@ README. Development is **paused** until the Pi Zero 2 W and the MG24 dongle
 arrive; then run the `PENDING HARDWARE TEST` list from the README, update the
 rows, the `CHANGELOG` pending list, and tag `v2.1.0`.
 
+Resume state (verify with `git log`/`git status`, this is only a snapshot):
+`release/v2.1.0` is the working branch, tag `v2.1.0-rc2` points at the published
+asset (`29bac08…` SHA256), documentation commits after the tag are expected and
+do not invalidate it. `main` still holds `v2.0.0`. Merged feature branches are
+deleted; only `main`, `release/v2.1.0`, `maint/1.x`, and `feat/zero2w` remain.
+The agent host has no `gh` — publish through the API as described in the skill.
+
 ## Context for the next session
 
 - Target: Raspberry Pi Zero 2 W, 64-bit Raspberry Pi OS Lite (aarch64, Debian
