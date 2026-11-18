@@ -164,7 +164,8 @@ node cuts access immediately.
 
 - [ ] "Tested on" section: date, board, Raspberry Pi OS version, Domoticz version
 - [x] "Uninstall" section
-- [ ] "License" section → `LICENSE` (MIT)
+- [x] "License" section → `LICENSE` (MIT)
+- [x] Documentation index pointing at `docs/zigbee2mqtt.md` and `docs/tailscale.md`
 - [ ] Panel screenshot (optional)
 
 ## P3 — Zigbee 3 via Zigbee2MQTT (local Tuya control)
