@@ -17,9 +17,10 @@ the remaining Zigbee items need the dongle.
 
 - Target: Raspberry Pi Zero 2 W, 64-bit Raspberry Pi OS Lite (aarch64, Debian
   12 or newer; Trixie is current), with SSH access and a `sudo` user.
-- The script performs eight steps: preflight validation -> system update and
-  dependencies -> download and verify the pinned release -> service account and
-  directories -> install files -> systemd unit -> Mosquitto -> verify.
+- The script performs eight steps plus one optional step: preflight validation ->
+  system update and dependencies -> download and verify the pinned release ->
+  service account and directories -> install files -> systemd unit -> Mosquitto
+  -> optional Tailscale (`--tailscale`) -> verify.
 - Pinned artifacts live at the top of `setup_domoticz.sh`. To bump Domoticz,
   update the version, URL, and SHA256 together:
 
@@ -125,21 +126,26 @@ Implementation contract:
 Remote access is a VPN, never an open port. Domoticz keeps listening on the LAN;
 Tailscale grants access to trusted devices only.
 
-- [ ] Install Tailscale from the official repository (pinned package version) and
-      `tailscale up` with a tagged auth key; no port forwarding, no public
-      exposure
-- [ ] Keep `8080` LAN-bound as today; document access via the tailnet address and
+- [x] `--tailscale` flag: add the official repository for the detected codename,
+      install the package, enable `tailscaled`; no automatic login, no port
+      forwarding, no public exposure. Idempotent on re-run; omitting the flag
+      does not remove Tailscale
+- [x] The installer prints the `tailscale up --auth-key ... --advertise-tags`
+      command instead of handling the key itself
+- [x] Keep `8080` LAN-bound as today; document access via the tailnet address and
       the MagicDNS name
-- [ ] Document that Tailscale does **not** replace broker authentication and does
+- [x] Document that Tailscale does **not** replace broker authentication and does
       not make the default `admin/domoticz` credentials acceptable
-- [ ] Document ACL/tag scheme, how to revoke a node, and how to run LAN-only
+- [x] Document ACL/tag scheme, how to revoke a node, and how to run LAN-only
       without Tailscale at all
 - [ ] Resource check on the Zero 2 W (`tailscaled` RSS, startup time) and note
       the SD-card write impact
 - [x] Documentation: `docs/tailscale.md` — threat model, install, ACL example,
       firewall interaction with `tailscale0`, revocation, uninstall
-- [ ] README: "Remote access" section with the threat model: no HTTPS/Let's
-      Encrypt on the Pi, so exposure outside the tailnet stays out of scope
+- [x] README: flag entry plus the documentation index, with the threat model in
+      `docs/tailscale.md` (no HTTPS on the Pi, so no exposure outside the tailnet)
+- [ ] Test on hardware: `--tailscale` install, `tailscaled` active, UI reachable
+      from a tailnet device, nothing reachable from the internet
 
 Acceptance criteria: the UI answers on the tailnet address from an authorized
 device, nothing answers from the internet without Tailscale, and revoking the

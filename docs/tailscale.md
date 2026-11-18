@@ -47,8 +47,19 @@ Rules that follow from this:
 
 ## 1. Install
 
-Tailscale provides per-codename Debian repositories. On Raspberry Pi OS
-Trixie:
+The installer can do the machine part for you:
+
+```bash
+sudo ./setup_domoticz.sh --tailscale
+```
+
+That adds the official Tailscale repository, installs the package, enables
+`tailscaled`, and prints the `tailscale up` command. It deliberately does **not**
+log the node in: the auth key stays out of the installer and out of shell
+history.
+
+To install by hand instead, Tailscale provides per-codename Debian
+repositories. On Raspberry Pi OS Trixie:
 
 ```bash
 curl -fsSL https://pkgs.tailscale.com/stable/raspbian/trixie.noarmor.gpg \
@@ -68,6 +79,10 @@ Check the daemon:
 ```bash
 systemctl status tailscaled --no-pager
 ```
+
+Re-running `sudo ./setup_domoticz.sh --tailscale` is safe: the keyring and apt
+source are only downloaded when missing, and the package install is idempotent.
+Re-running **without** the flag does not remove Tailscale.
 
 ## 2. Join the tailnet with a tagged auth key
 

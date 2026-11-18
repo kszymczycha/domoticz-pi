@@ -33,6 +33,9 @@ MQTT_USER="domoticz"
 MQTT_LAN=0
 MQTT_PASSWORD=""
 
+# --- Optional extras --------------------------------------------------------
+INSTALL_TAILSCALE=0
+
 # Minimum free space required on the root filesystem.
 MIN_FREE_KB=524288 # 512 MB
 
@@ -64,6 +67,9 @@ Options:
   --mqtt-lan   Let Mosquitto listen on 0.0.0.0:1883 instead of localhost only.
                Authentication is always enabled. Open the firewall for port
                1883 before using this flag.
+  --tailscale  Install Tailscale and enable tailscaled (VPN remote access).
+               The node is not logged in automatically; the script prints the
+               next command. See docs/tailscale.md.
   -h, --help   Show this help and exit.
 
 Without --mqtt-lan the broker listens on 127.0.0.1:1883 only. Re-running the
@@ -76,6 +82,9 @@ parse_args() {
         case "$1" in
             --mqtt-lan)
                 MQTT_LAN=1
+                ;;
+            --tailscale)
+                INSTALL_TAILSCALE=1
                 ;;
             -h|--help)
                 usage
@@ -367,6 +376,46 @@ verify_mosquitto() {
     fi
 }
 
+setup_tailscale() {
+    if [ "$INSTALL_TAILSCALE" -ne 1 ]; then
+        return 0
+    fi
+
+    echo "==> Installing Tailscale"
+
+    local codename
+    codename=$(awk -F= '$1 == "VERSION_CODENAME" {gsub(/"/, "", $2); print $2}' /etc/os-release)
+    [ -n "$codename" ] \
+        || die "cannot determine the Debian codename; install Tailscale manually (see docs/tailscale.md)"
+
+    local base_url="https://pkgs.tailscale.com/stable/raspbian"
+    local keyring="/usr/share/keyrings/tailscale-archive-keyring.gpg"
+    local sources="/etc/apt/sources.list.d/tailscale.list"
+
+    install -d -m 0755 "$(dirname "$keyring")" "$(dirname "$sources")"
+
+    if [ ! -s "$keyring" ]; then
+        curl -fsSL --retry 3 -o "$keyring" "${base_url}/${codename}.noarmor.gpg" \
+            || die "cannot download the Tailscale signing key for '${codename}'; see docs/tailscale.md"
+        chmod 0644 "$keyring"
+    fi
+
+    if [ ! -s "$sources" ]; then
+        curl -fsSL --retry 3 -o "$sources" "${base_url}/${codename}.tailscale-keyring.list" \
+            || die "cannot download the Tailscale apt source for '${codename}'; see docs/tailscale.md"
+        chmod 0644 "$sources"
+    fi
+
+    apt-get update
+    apt-get install -y tailscale
+
+    require_cmd tailscale
+
+    systemctl enable --now tailscaled.service
+    systemctl is-active --quiet tailscaled.service \
+        || die "tailscaled failed to start; check: systemctl status tailscaled.service"
+}
+
 verify_installation() {
     echo "==> Verifying the installation"
 
@@ -423,6 +472,18 @@ verify_installation() {
 
     echo
     echo "Default Domoticz login: admin / domoticz. Change the password immediately."
+
+    if [ "$INSTALL_TAILSCALE" -eq 1 ]; then
+        echo
+        echo "Tailscale is installed and tailscaled is running, but this node is"
+        echo "not logged in yet. Next step (requires an auth key from the admin"
+        echo "console):"
+        echo
+        echo "  sudo tailscale up --auth-key=<AUTH_KEY> --advertise-tags=tag:domoticz"
+        echo
+        echo "Then open http://$(hostname).<YOUR_TAILNET>.ts.net:${HTTP_PORT} from a"
+        echo "device in your tailnet. ACLs, firewall notes and revocation: docs/tailscale.md"
+    fi
 }
 
 main() {
@@ -434,6 +495,7 @@ main() {
     install_domoticz
     write_service
     setup_mosquitto
+    setup_tailscale
     verify_installation
 }
 
