@@ -7,7 +7,13 @@ All notable changes to this project are documented here. The format follows
 The public API is the installer CLI, the install layout, and the database
 location.
 
-## [Unreleased]
+## [2.1.0-rc2] - 2026-11-18
+
+> **RELEASE CANDIDATE — NOT PRODUCTION-READY.**
+> Hardware-pending: no row in the "Tested on" table of `README.md` has been
+> verified on a physical Raspberry Pi Zero 2 W or a real Zigbee coordinator.
+> Static checks pass (ShellCheck, `bash -n`, CLI behaviour) and that is all.
+> Supersedes `v2.1.0-rc1`.
 
 ### Fixed
 
@@ -25,6 +31,8 @@ location.
   source and keyring, and the Zigbee2MQTT unit and data; the MQTT hardware
   section states that only one gateway entry should be added.
 - Escaped a pipe in the Zigbee troubleshooting table so it renders.
+- Documented device removal/re-pair and rejected the Python
+  `domoticz-zigbee2mqtt` plugin explicitly.
 
 ### Changed
 

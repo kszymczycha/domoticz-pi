@@ -7,7 +7,7 @@ Status as of 2026-11-16:
   to `main` and published as a pre-release. It awaits a hardware test before
   being promoted to a full release.
 
-**Next action:** `v2.1.0-rc1` is prepared and its download links are live in the
+**Next action:** `v2.1.0-rc2` is prepared and its download links are live in the
 README. Development is **paused** until the Pi Zero 2 W and the MG24 dongle
 arrive; then run the `PENDING HARDWARE TEST` list from the README, update the
 rows, the `CHANGELOG` pending list, and tag `v2.1.0`.
@@ -164,12 +164,14 @@ node cuts access immediately.
 - [ ] Test `v2.0.0` on a real Raspberry Pi Zero 2 W, record the test date, and
       promote it to a full release
 - [x] README points at the **release asset** of the current line
-      (`v2.1.0-rc1` on `release/v2.1.0`; `main` still points at `v2.0.0`)
+      (`v2.1.0-rc2` on `release/v2.1.0`; `main` still points at `v2.0.0`)
 - [x] `release/v2.1.0` prepared: `feat/mqtt-auth`, `feat/zigbee-docs`, and
       `feat/tailscale-flag` merged, `CHANGELOG.md` written, README "Tested on"
       filled with `PENDING HARDWARE TEST`
-- [ ] Publish `v2.1.0-rc1` as a **pre-release** (script + `SHA256SUMS`), then run
-      the hardware test list from `README.md`
+- [x] Publish `v2.1.0-rc1` as a **pre-release** (superseded by `rc2`)
+- [x] Publish `v2.1.0-rc2` as a **pre-release** with the review fixes
+      (listener check, Quadlet keys, docs); run the hardware test list from
+      `README.md` next
 - [ ] Promote to `v2.1.0`: update the "Tested on" rows and the `CHANGELOG`
       pending list with the test date and results
 - Note: do not host Domoticz binaries in releases — GPLv3 requires offering the
@@ -530,7 +532,7 @@ Release lines:
   support or changing the layout again requires a new major.
 - **`v2.1.0`** — MQTT authentication, the Zigbee2MQTT path (documented;
   Zigbee2MQTT itself runs as a container), and the optional Tailscale step.
-  Currently `v2.1.0-rc1` on `release/v2.1.0`, pending the hardware test.
+  Currently `v2.1.0-rc2` on `release/v2.1.0`, pending the hardware test.
 - **`v3.0.0`** — the containerised layout (rootful Podman: Domoticz, Mosquitto,
   Zigbee2MQTT). Changing the install layout again or dropping Zero 2 W support
   requires a further major.

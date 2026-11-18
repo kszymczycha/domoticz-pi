@@ -35,7 +35,7 @@ Before running the script, ensure that:
 
 ## ✅ Tested on
 
-This tree is **`v2.1.0-rc1`**, a release candidate. It has passed static checks
+This tree is **`v2.1.0-rc2`**, a release candidate. It has passed static checks
 (ShellCheck, `bash -n`, CLI behaviour) but **nothing below has been confirmed on
 physical hardware yet**.
 
@@ -60,7 +60,7 @@ The corresponding items in [`PLAN.md`](PLAN.md) and the `Device Support` table i
 
 ## 🚀 Installation
 
-> **Release candidate:** the download links below point at `v2.1.0-rc1`, a
+> **Release candidate:** the download links below point at `v2.1.0-rc2`, a
 > pre-release. It has passed static checks only; see "Tested on" above for the
 > hardware status. The previous release line is `v2.0.0`, which is also still a
 > pre-release pending its own hardware test.
@@ -68,8 +68,8 @@ The corresponding items in [`PLAN.md`](PLAN.md) and the `Device Support` table i
 **Step 1: Download the script and checksums**
 
 ```bash
-wget https://github.com/kszymczycha/domoticz-pi/releases/download/v2.1.0-rc1/setup_domoticz.sh
-wget https://github.com/kszymczycha/domoticz-pi/releases/download/v2.1.0-rc1/SHA256SUMS
+wget https://github.com/kszymczycha/domoticz-pi/releases/download/v2.1.0-rc2/setup_domoticz.sh
+wget https://github.com/kszymczycha/domoticz-pi/releases/download/v2.1.0-rc2/SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
 
@@ -136,8 +136,8 @@ Domoticz updater is disabled so the pinned version cannot drift.
 
 | Guide | Status | Contents |
 | --- | --- | --- |
-| [Zigbee2MQTT](docs/zigbee2mqtt.md) | New in `v2.1.0-rc1` | SONOFF Dongle Plus MG24 (firmware 8.0.2, `ember`), Podman container with a 200 MB cap, MQTT Auto Discovery in Domoticz, pairing without the frontend |
-| [Tailscale](docs/tailscale.md) | New in `v2.1.0-rc1`, optional and recommended | Remote access as a VPN instead of port forwarding, ACLs, revocation |
+| [Zigbee2MQTT](docs/zigbee2mqtt.md) | New in `v2.1.0` | SONOFF Dongle Plus MG24 (firmware 8.0.2, `ember`), Podman container with a 200 MB cap, MQTT Auto Discovery in Domoticz, pairing without the frontend |
+| [Tailscale](docs/tailscale.md) | New in `v2.1.0`, optional and recommended | Remote access as a VPN instead of port forwarding, ACLs, revocation |
 
 The Zigbee guide assumes this version of the installer (MQTT authentication
 included). It is documentation-first: everything runs as documented commands, no
