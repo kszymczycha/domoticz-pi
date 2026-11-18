@@ -9,9 +9,10 @@ location.
 
 ## [2.1.0-rc1] - 2026-11-18
 
-**Release candidate.** Static checks pass (ShellCheck, `bash -n`, CLI
-behaviour). No row in the "Tested on" table has been verified on physical
-hardware yet; see `README.md` and `PLAN.md`.
+> **RELEASE CANDIDATE — NOT PRODUCTION-READY.**
+> Hardware-pending: no row in the "Tested on" table of `README.md` has been
+> verified on a physical Raspberry Pi Zero 2 W or a real Zigbee coordinator.
+> Static checks pass (ShellCheck, `bash -n`, CLI behaviour) and that is all.
 
 ### Added
 
