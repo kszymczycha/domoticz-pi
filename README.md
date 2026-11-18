@@ -62,7 +62,8 @@ The corresponding items in [`PLAN.md`](PLAN.md) and the `Device Support` table i
 
 > **Release candidate:** the download links below point at `v2.1.0-rc1`, a
 > pre-release. It has passed static checks only; see "Tested on" above for the
-> hardware status. The last stable line is `v2.0.0`.
+> hardware status. The previous release line is `v2.0.0`, which is also still a
+> pre-release pending its own hardware test.
 
 **Step 1: Download the script and checksums**
 
@@ -135,8 +136,8 @@ Domoticz updater is disabled so the pinned version cannot drift.
 
 | Guide | Status | Contents |
 | --- | --- | --- |
-| [Zigbee2MQTT](docs/zigbee2mqtt.md) | For the next release (`v2.1.0`) | SONOFF Dongle Plus MG24 (firmware 8.0.2, `ember`), Podman container with a 200 MB cap, MQTT Auto Discovery in Domoticz, pairing without the frontend |
-| [Tailscale](docs/tailscale.md) | Optional, recommended | Remote access as a VPN instead of port forwarding, ACLs, revocation |
+| [Zigbee2MQTT](docs/zigbee2mqtt.md) | New in `v2.1.0-rc1` | SONOFF Dongle Plus MG24 (firmware 8.0.2, `ember`), Podman container with a 200 MB cap, MQTT Auto Discovery in Domoticz, pairing without the frontend |
+| [Tailscale](docs/tailscale.md) | New in `v2.1.0-rc1`, optional and recommended | Remote access as a VPN instead of port forwarding, ACLs, revocation |
 
 The Zigbee guide assumes this version of the installer (MQTT authentication
 included). It is documentation-first: everything runs as documented commands, no
@@ -204,8 +205,8 @@ The installer configures the broker for authenticated access only:
 
 ### LAN access (`--mqtt-lan`)
 
-Other hosts on the LAN (for example a Zigbee2MQTT instance on a more powerful
-machine) need a reachable listener:
+Other hosts on the LAN (a second MQTT client, a spare machine) need a reachable
+listener:
 
 ```bash
 sudo ./setup_domoticz.sh --mqtt-lan
@@ -224,15 +225,21 @@ again. Authentication stays enabled in both cases.
 ### Add the broker to Domoticz
 
 1. Open *Setup → Hardware*.
-2. Add **MQTT Client Gateway with LAN interface** (or **MQTT Auto Discovery
-   Client Gateway** for auto-discovery; the Zigbee guide will document which one
-   is used).
+2. Pick **one** hardware entry:
+   - **MQTT Auto Discovery Client Gateway with LAN interface** — required for
+     Zigbee2MQTT, because devices are created from its discovery messages. See
+     [`docs/zigbee2mqtt.md`](docs/zigbee2mqtt.md).
+   - **MQTT Client Gateway with LAN interface** — only if you publish raw MQTT
+     topics yourself and do not use Zigbee2MQTT.
 3. Fill in:
    - *Remote Address:* `127.0.0.1` — or the Pi's LAN address with `--mqtt-lan`
    - *Port:* `1883`
    - *Username:* `domoticz`
    - *Password:* the value printed by the installer
 4. Save, then add devices under *Setup → Devices*.
+
+Do not add both entries: two clients on the same broker create duplicate
+devices and race each other.
 
 To verify the broker by hand:
 
@@ -314,15 +321,27 @@ ss -ltnp | grep 8080
 ## 🧹 Uninstall
 
 ```bash
-sudo systemctl disable --now domoticz.service
-sudo rm /etc/systemd/system/domoticz.service
+# Stop services. The Zigbee2MQTT Quadlet unit cannot be "disabled":
+# removing its .container file plus daemon-reload is what disables it.
+sudo systemctl stop zigbee2mqtt.service
+sudo systemctl disable --now domoticz.service tailscaled.service
+sudo rm -f /etc/systemd/system/domoticz.service \
+  /etc/containers/systemd/zigbee2mqtt.container \
+  /etc/mosquitto/conf.d/domoticz.conf \
+  /etc/apt/sources.list.d/tailscale.list \
+  /usr/share/keyrings/tailscale-archive-keyring.gpg
 sudo systemctl daemon-reload
-sudo rm -rf /opt/domoticz /var/lib/domoticz
+sudo rm -rf /opt/domoticz /var/lib/domoticz /var/lib/zigbee2mqtt
+sudo rm -f /etc/mosquitto/passwd
+sudo podman rm -f zigbee2mqtt 2>/dev/null || true
 sudo userdel domoticz
-sudo apt-get remove --purge mosquitto mosquitto-clients
+sudo apt-get remove --purge mosquitto mosquitto-clients tailscale
 ```
 
-This removes the database as well; back it up first if you need it.
+This removes the database and the Zigbee network key as well; back them up
+first if you need them. If you added firewall rules for ports 8080, 1883, or the
+`tailscale0` interface, remove those too. For the containerised Domoticz layout
+(`v3.0.0`, see `PLAN.md`) the paths differ.
 
 ---
 
