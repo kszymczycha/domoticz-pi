@@ -23,6 +23,22 @@ artifacts, updating the README/PLAN, or preparing a release for
 - Line endings must stay LF (enforced by `.gitattributes`).
 - Roadmap and status live in `PLAN.md`; the script is the source of truth for
   what actually gets installed.
+- Device integrations (P3) use one path only: TUYA (Zigbee) devices ->
+  Zigbee2MQTT -> Mosquitto -> Domoticz, with the SONOFF Dongle Plus MG24 as
+  Zigbee coordinator (firmware 8.0.2, adapter `ember`, never `ezsp`). Tuya
+  Wi-Fi, the Tuya cloud/gateway, deCONZ, and Thread/Matter are out of scope.
+  Documentation first; no device logic in `setup_domoticz.sh`.
+- Domoticz consumes Zigbee2MQTT through native MQTT Auto Discovery; manual topic
+  mapping is a per-device fallback, the Python plugin is rejected.
+- Zigbee2MQTT runs as a pinned official Podman image (Node.js from the image);
+  `frontend: false` by default on the 512 MB board.
+- Podman (P4) is rootful and targets the whole chain as the `v3.0.0` layout; the
+  native install stays the `v2.x` path. Never run both on one host, never mix the
+  two in one script.
+- Remote access is Tailscale only (P1.10); no port forwarding, no public
+  exposure.
+- Mosquitto authentication (P1.7) is a prerequisite: no anonymous broker, not
+  even temporarily.
 
 ## Invariants
 

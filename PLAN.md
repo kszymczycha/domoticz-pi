@@ -7,13 +7,11 @@ Status as of 2026-11-16:
   to `main` and published as a pre-release. It awaits a hardware test before
   being promoted to a full release.
 
-**Next action:** test `v2.0.0` on a real Raspberry Pi Zero 2 W (clean Raspberry
-Pi OS Lite 64-bit, install, web UI on port 8080, reboot, database persistence,
-`systemd-analyze security`, Mosquitto active). On success, unmark the GitHub
-pre-release, add the test date to the release notes, README, and this file.
-If the board is not available yet, continue with **P1.7 (Mosquitto
-authentication)** on `main`; the hardware test remains the gate for promoting
-`v2.0.0`.
+**Next action:** **P1.7 (Mosquitto authentication)** on `main`. It is the
+prerequisite for the whole Zigbee chain: no anonymous broker, not even
+temporarily. The `v2.0.0` hardware test stays the gate for promoting that
+pre-release and can happen whenever the board is available; it no longer blocks
+P1/P3.
 
 ## Context for the next session
 
@@ -43,6 +41,15 @@ authentication)** on `main`; the hardware test remains the gate for promoting
 - Do NOT: host Domoticz binaries in releases (GPLv3 source obligation), use
   mutable URLs, or reintroduce CRLF line endings.
 - `git log` is the source of truth for status; the Done list below is a snapshot.
+- Hardware for the device integrations: a SONOFF Zigbee/Thread USB Dongle Plus
+  MG24 on the Pi Zero 2 W (Zigbee coordinator mode only, firmware 8.0.2, adapter
+  `ember`), with Zigbee2MQTT as the bridge and Mosquitto as the transport. Goal
+  is local Tuya control with the cloud blocked; no other integration path is
+  planned. Decisions and remaining unknowns: see "Open questions".
+- Zigbee2MQTT runs as a Podman container from the pinned official image; the
+  Domoticz + Mosquitto install stays native until `v3.0.0`.
+- Container mode (P4) is the `v3.0.0` target, not part of the native install
+  flow; keeping the two apart is deliberate.
 - Maintenance procedure: `.opencode/skills/domoticz-zero2w/SKILL.md`; keep it in
   sync with this plan.
 
@@ -105,6 +112,29 @@ Implementation contract:
 - [x] README: stronger warning about `admin/domoticz`
 - [ ] With `--mqtt-lan`, print the `ufw` rule for port 1883 and warn if the firewall is inactive (never install `ufw` silently)
 
+### 10. Remote access with Tailscale
+
+Remote access is a VPN, never an open port. Domoticz keeps listening on the LAN;
+Tailscale grants access to trusted devices only.
+
+- [ ] Install Tailscale from the official repository (pinned package version) and
+      `tailscale up` with a tagged auth key; no port forwarding, no public
+      exposure
+- [ ] Keep `8080` LAN-bound as today; document access via the tailnet address and
+      the MagicDNS name
+- [ ] Document that Tailscale does **not** replace broker authentication and does
+      not make the default `admin/domoticz` credentials acceptable
+- [ ] Document ACL/tag scheme, how to revoke a node, and how to run LAN-only
+      without Tailscale at all
+- [ ] Resource check on the Zero 2 W (`tailscaled` RSS, startup time) and note
+      the SD-card write impact
+- [ ] README: "Remote access" section with the threat model: no HTTPS/Let's
+      Encrypt on the Pi, so exposure outside the tailnet stays out of scope
+
+Acceptance criteria: the UI answers on the tailnet address from an authorized
+device, nothing answers from the internet without Tailscale, and revoking the
+node cuts access immediately.
+
 ## P2 — Versioning and documentation
 
 ### 11. Tag and GitHub Release
@@ -127,73 +157,235 @@ Implementation contract:
 - [ ] "License" section → `LICENSE` (MIT)
 - [ ] Panel screenshot (optional)
 
-## P3 — Device integrations (Tuya Wi-Fi and Zigbee 3)
+## P3 — Zigbee 3 via Zigbee2MQTT (local Tuya control)
 
-Goal: control Tuya Wi-Fi devices and Zigbee 3 devices (through the existing
-gateway) from Domoticz.
+Goal: control Tuya Zigbee devices from Domoticz **locally**, with no cloud
+round-trip, through exactly one path:
+
+```
+SONOFF Zigbee/Thread USB Dongle Plus MG24 (EFR32MG24, EZSP)
+   -> Zigbee2MQTT  ->  Mosquitto  ->  Domoticz
+```
 
 Scope note: this repository is an installer. Integration work is
 documentation-first; add script support only where it is genuinely reusable.
 Do not bloat `setup_domoticz.sh` with device-specific logic.
 
+Out of scope for now (recorded so it is not relitigated):
+Tuya Wi-Fi devices (`tinytuya`/local API), the Tuya cloud and the Tuya gateway
+bridge, deCONZ, Thread/Matter and OpenThread border routers, and any other
+coordinator. The MG24 is used in Zigbee coordinator mode only. Revisit only if
+the Zigbee2MQTT path cannot cover a specific device.
+
 ### 13. Discovery (do this first)
 
-- [ ] Record the gateway brand, model, firmware, and supported local interfaces
-      (MQTT bridge, local API, Matter, cloud-only)
-- [ ] Inventory the Tuya Wi-Fi devices and check whether local keys can be
-      extracted
-- [ ] Decide whether the Zigbee stack runs on the Pi Zero 2 W or on a more
-      capable always-on host
+- [ ] Record the SONOFF Dongle Plus MG24 details: exact model/revision, the
+      factory firmware image, and the flasher used (SONOFF Dongle Flasher)
+- [ ] Flash coordinator firmware **8.0.2** before first start and record the
+      exact file/version string in the docs as a prerequisite. Factory 7.4.5 is
+      not the tested baseline; MultiPAN firmware is not used
+- [ ] Confirm the dongle is detected on the Pi Zero 2 W (`/dev/ttyACM0` or
+      `/dev/ttyUSB0`), that the port can power it, and that the serial path is
+      stable across reboots (`/dev/serial/by-id/...`)
+- [ ] Confirm the Zigbee2MQTT adapter setting is `ember` (EZSP-style `ezsp` is
+      not used) with `baudrate: 115200`, and that the pinned Z2M release
+      supports coordinator firmware 8.0.2
+- [ ] Inventory the Tuya Zigbee devices (sockets, relays, sensors) and confirm
+      each model is in the Z2M supported-devices list without custom quirks
+- [ ] Record how far Domoticz's **MQTT Auto Discovery Client Gateway** gets with
+      this Z2M version: which device types are created automatically and which
+      appear as unused or not at all
 
-Open questions:
+Open questions: see "Open questions" below (the P3 decisions are recorded
+there and in "Decisions").
 
-- Is the gateway Tuya-branded and cloud-only, or does it expose a local/MQTT
-  bridge?
-- Is cloud dependency acceptable for Tuya Wi-Fi devices, or is local-only
-  control required?
-- Is there a spare always-on host for Zigbee2MQTT, or must everything run on the
-  Pi Zero 2 W (512 MB RAM)?
+### 14. Zigbee2MQTT and Mosquitto stack
 
-### 14. Tuya Wi-Fi
+- [ ] Run Zigbee2MQTT as a Podman container from the **official image pinned by
+      tag** (Node.js comes from the image; no system Node.js). Podman is
+      therefore required for the Zigbee path even on the native Domoticz
+      install
+- [ ] Record image tag and digest in the docs; a version bump is a deliberate,
+      tested change
+- [ ] `configuration.yaml`: `serial.adapter: ember`, `serial.baudrate: 115200`,
+      `serial.port` via `/dev/serial/by-id/...`, `mqtt.server` + credentials from
+      P1.7, `mqtt.base_topic`
+- [ ] `frontend: false` by default to save RAM; enable it temporarily only for
+      pairing or troubleshooting
+- [ ] `permit_join: false` by default; open a pairing window explicitly and
+      close it afterwards
+- [ ] Cap memory for the Z2M container (Podman `--memory`) so an OOM cannot take
+      down Domoticz, and document how to raise it
+- [ ] Ensure Domoticz and Z2M use the same broker and topic prefix; configure the
+      Domoticz hardware entry once and record which one works
+- [ ] Verify QoS/retain settings so device states survive a Domoticz restart
+- [ ] Resource check: measure RSS/CPU of Z2M on the Zero 2 W with the frontend
+      off, under pairing load and after a reboot
 
-- [ ] Prefer local control (`tinytuya` / local API) over the Tuya cloud
-- [ ] Document how to obtain the device ID and local key without committing
-      secrets
-- [ ] Map devices to Domoticz (MQTT topics or a Python plugin) and document
-      naming
-- [ ] Define polling interval and reconnect behavior after network loss
+### 15. Pairing, naming, and Domoticz mapping
 
-### 15. Zigbee 3 (existing gateway)
-
-- [ ] If the gateway exposes MQTT, bridge it to Domoticz through Mosquitto
-- [ ] Otherwise document the supported path (Zigbee2MQTT coordinator, deCONZ, or
-      the gateway's cloud)
-- [ ] Resource check: Zigbee2MQTT (Node.js) is still heavy for a Zero 2 W;
-      prefer an external host and enable `--mqtt-lan`
-- [ ] Document pairing and device naming in Domoticz
+- [ ] Primary integration: native **MQTT Auto Discovery Client Gateway**. Devices
+      are created from Z2M discovery topics once state arrives
+- [ ] Document the proven behaviour per device class (socket, relay, sensor) and
+      list any type that falls back to manual mapping
+- [ ] Fallback rule: manual topic mapping is allowed **only** for a specific
+      device that auto discovery cannot represent; the Python
+      `domoticz-zigbee2mqtt` plugin is rejected as maintenance overhead
+- [ ] Document pairing: dongle in coordinator mode, pairing window, device reset,
+      confirmation in Z2M logs/CLI
+- [ ] Naming convention in Z2M and how it maps to Domoticz names; no
+      device-specific hardcoding in the installer
+- [ ] Confirm a paired Tuya device appears in Domoticz and responds to commands
+      with the internet uplink blocked
+- [ ] Document removal/re-pair and recovery after a dongle replacement or a lost
+      Zigbee network key
 
 ### 16. Security and operations
 
 - [ ] Broker authentication is mandatory (depends on P1.7); no anonymous access
-- [ ] Cloud credentials and device keys never enter the repository; document
-      where they live
-- [ ] Backups cover device pairing data, not only `domoticz.db`
-- [ ] Test recovery after a reboot and after a broker restart
+      for Z2M or Domoticz
+- [ ] The Zigbee network key, MQTT credentials, and the Z2M `data/` directory
+      never enter the repository; document where they live on the device
+- [ ] Backup script: `tar` of the Z2M `data/` directory plus `domoticz.db`,
+      restored in a documented order
+- [ ] Test recovery after a reboot, after a broker restart, and after a dongle
+      reconnect (state restored, no duplicate devices)
+- [ ] Upgrade procedure: pinned image bump, coordinator firmware updates, and the
+      rollback step
+- [ ] Document the USB extension cable as a **hard requirement**: the dongle must
+      be physically separated from the Pi and its power supply; pairing results
+      without it are not accepted
 
 Acceptance criteria:
 
-- A Tuya Wi-Fi device state change round-trips to Domoticz within the documented
-  interval and survives a reboot.
-- Zigbee devices pair through the gateway and appear in Domoticz.
-- No credentials in the repository; the broker rejects anonymous clients.
+- A Tuya Zigbee device pairs through the MG24 dongle (firmware 8.0.2, adapter
+  `ember`), is created by MQTT Auto Discovery in Domoticz, and responds to
+  commands with the internet uplink blocked.
+- A state change made on the device reaches Domoticz within the documented
+  interval and survives a reboot of the Pi.
+- The whole chain is Zigbee2MQTT -> Mosquitto -> Domoticz only; no Tuya cloud
+  account is needed for day-to-day control.
+- The stack fits in 512 MB RAM with the Z2M frontend disabled; no OOM kill in a
+  24-hour run.
+- No credentials or keys in the repository; the broker rejects anonymous
+  clients.
+
+## P4 — Container deployment (Podman)
+
+Goal: the target deployment of the whole chain — Domoticz, Mosquitto, and
+Zigbee2MQTT — as Podman containers on the Pi Zero 2 W, with `systemd`/Quadlet
+units for autostart. This replaces the native `/opt` + `/var/lib` layout and is
+therefore a **major release (`v3.0.0`)**: the database path moves to a volume.
+
+Podman runs **rootful** (as root). This is a deliberate choice: passing the MG24
+dongle to the container and dealing with `dialout` ownership is far simpler and
+more reproducible than rootless with `--group-add keep-groups`. The trade-off
+(container root equals host root) must be documented, not hidden.
+
+Zigbee2MQTT already runs as a container from P3.14. This section turns the
+native Domoticz + Mosquitto install into containers and makes the container
+layout the supported one.
+
+Scope note: `setup_domoticz.sh` must not grow container logic — a separate
+script or a documented Quadlet/compose set is preferred. The native install
+remains available for `v2.x` users; both modes never run on the same host.
+
+### 17. Containerised deployment
+
+- [ ] Confirm `podman` and Quadlet support are recent enough on Raspberry Pi OS
+      Lite 64-bit (Trixie), and that the official `domoticz/domoticz` image has
+      an `arm64` variant at the pinned tag
+- [ ] Measure the overhead against the native install (RAM, CPU, startup time,
+      SD-card writes) on a 512 MB board
+- [ ] Persist state in named volumes: `domoticz.db`, plugins, scripts, Z2M
+      `data/`, and the Mosquitto config plus password file. Never inside the
+      container layer
+- [ ] Networking: publish 8080 on the LAN; keep MQTT on a Podman network between
+      the three containers; publish 1883 only when `--mqtt-lan` semantics apply
+- [ ] USB passthrough for the MG24 dongle in rootful mode (`--device`), plus the
+      `/dev/serial/by-id/` path inside the container and a reboot test
+- [ ] Autostart and recovery: Quadlet `.container` units, `Restart=always`,
+      ordering (broker -> Z2M -> Domoticz), and logs in the journal
+- [ ] Backup/restore: snapshot the volumes and document migration from the
+      native layout in both directions, including the `domoticz.db` path change
+- [ ] Document the security delta versus the hardened systemd unit: rootful
+      containers run as root, so `NoNewPrivileges`, `ProtectSystem=strict`, and
+      `ReadWritePaths` need explicit `--cap-drop`, read-only mounts, and
+      `--security-opt` equivalents
+- [ ] Document image pinning by tag **and** digest, and the upgrade/rollback
+      procedure for all three containers
+- [ ] README: a "Podman instead of the native install" section with an explicit
+      "pick one" warning (two deployments writing the same database is unsafe)
+
+Acceptance criteria:
+
+- All three containers start from Quadlet units after a reboot, Domoticz serves
+  the UI on port 8080, and the database survives container replacement.
+- Z2M sees the MG24 dongle (firmware 8.0.2, `ember`) and delivers device updates
+  to Domoticz through the containerised Mosquitto with authentication enabled.
+- Removing the containers leaves no orphaned data, and migrating the database
+  back to the native layout works.
+- The documented security delta is honest: no capabilities beyond the listed
+  `--cap-drop`/read-only baseline, and no host network access where a Podman
+  network works.
+
+## Open questions
+
+Decisions taken on 2026-11-18 are recorded here so the rationale sits next to
+the roadmap; the binding summary is in "Decisions".
+
+### Resolved
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 1 | How does Domoticz consume Zigbee2MQTT? | Native **MQTT Auto Discovery Client Gateway** only. Manual topic mapping is a per-device fallback if auto discovery fails for a type; the Python `domoticz-zigbee2mqtt` plugin is rejected (maintenance). |
+| 2 | Which coordinator firmware? | Flash **8.0.2** before first start; version is a documented prerequisite. Adapter is **`ember`**, never `ezsp`. MultiPAN firmware is not used. |
+| 3 | Where does the stack run? | Entirely on the Pi Zero 2 W. Z2M `frontend: false` by default; if RAM is still tight, cap the Z2M container with `--memory`. No second host. |
+| 4 | Auth before or after Z2M? | **P1.7 first**, then Z2M. No temporary anonymous broker. |
+| 5 | Podman rootless or rootful? | **Rootful.** USB passthrough and `dialout` are simpler and reproducible; the trade-off is documented. All three services containerised in **v3.0.0** (major, layout change). |
+| 6 | Device scope | Tuya Zigbee sockets, relays, and sensors only; assumed in the Z2M supported-devices list with no custom quirks. |
+| 7 | USB extension cable | **Hard requirement.** The dongle must be away from the Pi and its PSU; tests without it are invalid. |
+| 8 | Z2M versioning and Node.js | Pin the **official image by tag and digest**; Node.js comes from the image. No system Node.js. |
+| 9 | Backups | One script: `tar` of Z2M `data/` plus `domoticz.db`, with a documented restore order. |
+| 10 | Remote access | **Tailscale** VPN (P1.10). No port forwarding, no public exposure. |
+
+### Still open
+
+- **Auto-discovery coverage:** which Tuya types (thermostats, covers, multi-gang
+  switches) are actually created by Domoticz auto discovery. Only measurable
+  with the devices on the desk; the fallback list depends on it.
+- **Firmware pinning mechanics:** the SONOFF flasher is browser-based, so there
+  is no checksum to embed. Decide whether to record only the version string or
+  also archive the firmware file and its SHA256 in the docs.
+- **Z2M image availability for `arm64`:** confirm the pinned tag publishes an
+  `arm64` manifest before writing the guide.
+- **RAM headroom:** real RSS of containerised Z2M + Podman + Domoticz on 512 MB,
+  including a pairing burst and a 24-hour run.
+- **Podman on Trixie:** Quadlet version, cgroup delegation, and whether extra
+  kernel parameters are needed for the memory cap.
+- **SD-card wear:** whether Z2M plus Domoticz logging on the SD card requires
+  journald tuning or a log-to-RAM option.
+- **Tailscale footprint:** `tailscaled` RSS and whether it should be an optional
+  documented step instead of part of the default install.
+- **Release shape for P4:** a separate script, Quadlet files in the repo, or a
+  documented compose file — and whether native and container modes share a
+  migration tool.
+- **`--mqtt-lan` after containerisation:** whether the flag keeps its meaning
+  when the broker is containerised, or is replaced by a Podman network plus an
+  explicit publish rule.
 
 ## Suggested order
 
-1. **P2.11 (v2.0.0)** — test the pre-release on a real Zero 2 W and promote it
-   to a full release
-2. **7** — Mosquitto auth (code + README MQTT section)
-3. **9 + 12** — README only (MQTT firewall hint, Tested on, License)
-4. **13–16** — device integrations (docs + optional helpers), released as v2.1.0
+1. **P1.7 (Mosquitto auth)** — prerequisite for every Zigbee step; the broker is
+   never anonymous, not even temporarily
+2. **P1.10 + 9 + 12** — Tailscale, firewall hints, and the remaining README work
+3. **P3.13–16** — Zigbee2MQTT -> Mosquitto -> Domoticz with the MG24 dongle
+   (docs + optional helpers), released as `v2.1.0`
+4. **P4.17** — containerise the whole chain with rootful Podman, released as
+   `v3.0.0`
+5. **P2.11 (v2.0.0)** — independent of the above: promote the pre-release once a
+   real Zero 2 W test happens (do it whenever the board is available; it does
+   not block P1/P3)
 
 ## Acceptance criteria
 
@@ -207,6 +399,15 @@ Acceptance criteria:
   documented Domoticz setup works on a fresh install.
 - **9 / 12:** README-only changes; acceptance means the documented commands work
   on a fresh install.
+- **10 (Tailscale):** the UI answers on the tailnet address from an authorized
+  device; nothing answers from the internet without Tailscale; revoking the node
+  cuts access.
+- **13–16 (Zigbee):** see the P3 acceptance criteria above; the origin is
+  firmware 8.0.2 with adapter `ember` and devices arrive through MQTT Auto
+  Discovery.
+- **17 (Podman, `v3.0.0`):** all three containers start after a reboot, the
+  database and Z2M `data/` live in volumes, and migration back to the native
+  layout is documented and tested once.
 
 ## Decisions
 
@@ -235,6 +436,32 @@ Decided on 2026-11-16:
   documented manual step.
 - **Logging:** use the systemd journal; no file-based logrotate rule.
 
+Open decisions: none outstanding; unresolved facts are tracked in
+"Open questions".
+
+Decided on 2026-11-18:
+
+- **Single integration path:** Tuya Zigbee devices are controlled locally through
+  `Zigbee2MQTT -> Mosquitto -> Domoticz` using the SONOFF Dongle Plus MG24 as
+  coordinator. Tuya Wi-Fi (`tinytuya`), the Tuya cloud, the Tuya gateway bridge,
+  deCONZ, and Thread/Matter are out of scope until this path is proven.
+- **Domoticz integration:** native MQTT Auto Discovery Client Gateway. Manual
+  topic mapping only for a specific device that auto discovery cannot represent;
+  the Python plugin is rejected as maintenance overhead.
+- **Coordinator firmware:** 8.0.2 is a documented prerequisite; adapter `ember`
+  only. MultiPAN firmware is not used.
+- **Topology:** everything on the Pi Zero 2 W; Z2M frontend disabled by default
+  and a container memory cap as the OOM guard. No second host.
+- **Order:** Mosquitto authentication (P1.7) lands before any Zigbee work.
+- **Zigbee2MQTT packaging:** official image pinned by tag and digest, Node.js
+  from the image. Podman is therefore part of the Zigbee path, not just P4.
+- **Podman mode:** rootful. The whole chain (Domoticz, Mosquitto, Z2M) is
+  containerised as the `v3.0.0` target; the native layout stays supported for
+  `v2.x`.
+- **Radio hygiene:** a USB extension cable and physical separation from the Pi
+  are mandatory; pairing results without them are invalid.
+- **Remote access:** Tailscale VPN only (P1.10), no port forwarding.
+
 ## Versioning and hardware support
 
 One release line for one supported board family. Hardware support is validated
@@ -259,7 +486,9 @@ Release lines:
 - **`main`** — the Raspberry Pi Zero 2 W line. `v2.0.0` is the first release
   (aarch64, `/opt` layout). Future releases are `v2.x.y`; dropping Zero 2 W
   support or changing the layout again requires a new major.
-- **`v3.0.0`** — reserved for the next breaking change, if any.
+- **`v3.0.0`** — the containerised layout (rootful Podman: Domoticz, Mosquitto,
+  Zigbee2MQTT). Changing the install layout again or dropping Zero 2 W support
+  requires a further major.
 
 Rules:
 
