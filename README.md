@@ -59,15 +59,15 @@ The corresponding items in [`PLAN.md`](PLAN.md) and the `Device Support` table i
 
 ## 🚀 Installation
 
-> **Release candidate:** this tree prepares `v2.1.0-rc1`. `v2.0.0` remains the
-> published pre-release, so the download links below still point at it until the
-> RC is published. See "Tested on" above for the hardware status.
+> **Release candidate:** the download links below point at `v2.1.0-rc1`, a
+> pre-release. It has passed static checks only; see "Tested on" above for the
+> hardware status. The last stable line is `v2.0.0`.
 
 **Step 1: Download the script and checksums**
 
 ```bash
-wget https://github.com/kszymczycha/domoticz-pi/releases/download/v2.0.0/setup_domoticz.sh
-wget https://github.com/kszymczycha/domoticz-pi/releases/download/v2.0.0/SHA256SUMS
+wget https://github.com/kszymczycha/domoticz-pi/releases/download/v2.1.0-rc1/setup_domoticz.sh
+wget https://github.com/kszymczycha/domoticz-pi/releases/download/v2.1.0-rc1/SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
 
