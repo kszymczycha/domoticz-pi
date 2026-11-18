@@ -74,7 +74,7 @@ rows, the `CHANGELOG` pending list, and tag `v2.1.0`.
 - [x] **P0.5** `DEBIAN_FRONTEND=noninteractive`
 - [x] **P1.6** Safe service-user detection (v2 uses a dedicated `domoticz` system user)
 - [x] **P2.10** ShellCheck CI (`.github/workflows/shellcheck.yml`); also runs on
-      `release/*` pushes so release candidates are linted without a manual
+      `release/**` pushes so release candidates are linted without a manual
       dispatch
 - [x] **P2.11 (v1.0.0)** Tag and GitHub release for the Pi Zero W reference
 - [x] **v2.0.0 port** Domoticz 2026.4 aarch64, platform validation, no ARMv6
@@ -129,6 +129,20 @@ Implementation contract:
   - `mosquitto_pub` without credentials fails;
   - `mosquitto_pub` with the generated credentials succeeds;
   - `ss -ltn` shows `127.0.0.1:1883` without the flag and `0.0.0.0:1883` with it.
+
+### 8. Layout and service hardening
+
+Shipped in `v2.0.0`; recorded here because the layout is part of the public API.
+
+- [x] Application files root-owned and read-only to the service in `/opt/domoticz`
+- [x] Database, plugins, scripts, and backups in `/var/lib/domoticz` (`0750`)
+- [x] Dedicated `domoticz` system user with `nologin` and a matching group
+- [x] Hardened unit: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`,
+      `ProtectHome`, `ProtectControlGroups`, `RestrictSUIDSGID`, `UMask=0027`,
+      `ReadWritePaths`, `StateDirectory`
+- [x] Logs go to the systemd journal; no file-based logrotate rule
+- [x] No automatic migration from the old `$HOME` layout; moving
+      `domoticz.db` stays a documented manual step
 
 ### 9. Network exposure and default credentials
 

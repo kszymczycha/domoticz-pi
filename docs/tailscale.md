@@ -70,7 +70,9 @@ sudo apt-get update
 sudo apt-get install -y tailscale
 ```
 
-On Bookworm, replace `trixie` with `bookworm` in both URLs. Pin the package
+On Bookworm, replace `trixie` with `bookworm` in both URLs. If the codename
+does not exist upstream yet, use the closest Debian release directory —
+`--tailscale` fails with a clear message rather than guessing. Pin the package
 version if you want reproducible rebuilds (`apt-cache policy tailscale`, then
 `apt-get install tailscale=<version>`).
 

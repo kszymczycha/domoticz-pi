@@ -48,10 +48,10 @@ artifacts, updating the README/PLAN, or preparing a release for
 
 ## Invariants
 
-- Keep the eight-step order: preflight validation -> system update and
+- Keep the execution order: preflight validation -> system update and
   dependencies -> download/verify -> service account and directories -> install
   files -> systemd unit -> Mosquitto -> verify. The optional Tailscale step
-  (`--tailscale`) runs right after Mosquitto, before verification.
+  (`--tailscale`) runs between Mosquitto and verification.
 - Never use mutable URLs for artifacts. Pin the release and verify SHA256 before
   installing.
 - Never reintroduce: `armv6l`/`armv7l` support, the Buster repository,

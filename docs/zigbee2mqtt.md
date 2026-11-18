@@ -23,7 +23,7 @@ the 64-bit OS is a hard requirement.
 | Requirement | Why |
 | --- | --- |
 | Domoticz installed by `setup_domoticz.sh` | Provides the `domoticz` MQTT user |
-| Installer version `v2.1.0-rc1` or newer | Earlier releases had no MQTT authentication |
+| Installer version `v2.1.0-rc2` or newer | Earlier releases had no MQTT authentication |
 | Mosquitto with authentication | Anonymous clients are rejected |
 | `podman` installed | Zigbee2MQTT runs as a container |
 | SONOFF Dongle Plus MG24 flashed with **coordinator firmware 8.0.2** | 8.0.2 is the tested baseline |

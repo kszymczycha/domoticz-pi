@@ -130,7 +130,7 @@ Published as a pre-release; it awaits a hardware test before being promoted.
 - Domoticz logs go to the systemd journal; `-noupdates` disables the internal
   updater.
 
-## [1.0.0] - 2026-11-12
+## [1.0.0] - 2026-11-16
 
 Frozen reference for the Raspberry Pi Zero W (ARMv6). Historical and
 unsupported; kept for rolling back the old hardware.
