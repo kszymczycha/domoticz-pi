@@ -10,8 +10,8 @@ Status as of 2026-11-16:
 **Next action:** test `feat/mqtt-auth` on a real Zero 2 W (fresh install, `--help`,
 unknown flag exits 2, anonymous publish rejected, credentials printed once,
 re-run leaves them unchanged, `--mqtt-lan` adds and removes the listener), then
-merge it to `main`. After that: **P1.10 (Tailscale)** and **P3.13 (Zigbee2MQTT
-discovery)**.
+merge it to `main`. `docs/zigbee2mqtt.md` and `docs/tailscale.md` are written;
+the remaining Zigbee items need the dongle.
 
 ## Context for the next session
 
@@ -52,6 +52,9 @@ discovery)**.
   flow; keeping the two apart is deliberate.
 - Maintenance procedure: `.opencode/skills/domoticz-zero2w/SKILL.md`; keep it in
   sync with this plan.
+- Deployment guides live in `docs/`. They are written first, then verified on
+  hardware; when a guide and the script disagree, the script wins and the guide
+  is a bug.
 
 ## Done
 
@@ -133,6 +136,8 @@ Tailscale grants access to trusted devices only.
       without Tailscale at all
 - [ ] Resource check on the Zero 2 W (`tailscaled` RSS, startup time) and note
       the SD-card write impact
+- [x] Documentation: `docs/tailscale.md` — threat model, install, ACL example,
+      firewall interaction with `tailscale0`, revocation, uninstall
 - [ ] README: "Remote access" section with the threat model: no HTTPS/Let's
       Encrypt on the Pi, so exposure outside the tailnet stays out of scope
 
@@ -226,6 +231,10 @@ there and in "Decisions").
 - [ ] Verify QoS/retain settings so device states survive a Domoticz restart
 - [ ] Resource check: measure RSS/CPU of Z2M on the Zero 2 W with the frontend
       off, under pairing load and after a reboot
+- [x] Documentation: `docs/zigbee2mqtt.md` — firmware 8.0.2, `ember` at 115200,
+      serial path, USB extension cable as a hard requirement, pinned image,
+      Quadlet unit with `Memory=200m`, MQTT-based pairing, Domoticz AD setup,
+      backup/upgrade/uninstall, troubleshooting
 
 ### 15. Pairing, naming, and Domoticz mapping
 
@@ -244,6 +253,9 @@ there and in "Decisions").
       with the internet uplink blocked
 - [ ] Document removal/re-pair and recovery after a dongle replacement or a lost
       Zigbee network key
+- [x] Documentation: "Device Support" table in `docs/zigbee2mqtt.md` with
+      placeholder rows for Tuya sockets, relays, and sensors to be verified on
+      hardware
 
 ### 16. Security and operations
 
@@ -345,12 +357,12 @@ the roadmap; the binding summary is in "Decisions".
 | --- | --- | --- |
 | 1 | How does Domoticz consume Zigbee2MQTT? | Native **MQTT Auto Discovery Client Gateway** only. Manual topic mapping is a per-device fallback if auto discovery fails for a type; the Python `domoticz-zigbee2mqtt` plugin is rejected (maintenance). |
 | 2 | Which coordinator firmware? | Flash **8.0.2** before first start; version is a documented prerequisite. Adapter is **`ember`**, never `ezsp`. MultiPAN firmware is not used. |
-| 3 | Where does the stack run? | Entirely on the Pi Zero 2 W. Z2M `frontend: false` by default; if RAM is still tight, cap the Z2M container with `--memory`. No second host. |
+| 3 | Where does the stack run? | Entirely on the Pi Zero 2 W. Zigbee2MQTT runs as a Podman container **from the start** with `--memory=200m`; frontend disabled. No second host. |
 | 4 | Auth before or after Z2M? | **P1.7 first**, then Z2M. No temporary anonymous broker. |
 | 5 | Podman rootless or rootful? | **Rootful.** USB passthrough and `dialout` are simpler and reproducible; the trade-off is documented. All three services containerised in **v3.0.0** (major, layout change). |
 | 6 | Device scope | Tuya Zigbee sockets, relays, and sensors only; assumed in the Z2M supported-devices list with no custom quirks. |
 | 7 | USB extension cable | **Hard requirement.** The dongle must be away from the Pi and its PSU; tests without it are invalid. |
-| 8 | Z2M versioning and Node.js | Pin the **official image by tag and digest**; Node.js comes from the image. No system Node.js. |
+| 8 | Z2M versioning and Node.js | Pin the **official image by tag and digest**; Node.js comes from the image. No system Node.js. Z2M is containerised from the start (confirmed), so Podman is a requirement of the Zigbee path. |
 | 9 | Backups | One script: `tar` of Z2M `data/` plus `domoticz.db`, with a documented restore order. |
 | 10 | Remote access | **Tailscale** VPN (P1.10). No port forwarding, no public exposure. |
 
@@ -383,9 +395,11 @@ the roadmap; the binding summary is in "Decisions".
 
 1. **P1.7 (Mosquitto auth)** — implemented on `feat/mqtt-auth`; awaits the
    hardware test before merging to `main`
-2. **P1.10 + 12** — Tailscale, "Tested on", License, and the remaining README work
-3. **P3.13–16** — Zigbee2MQTT -> Mosquitto -> Domoticz with the MG24 dongle
-   (docs + optional helpers), released as `v2.1.0`
+2. **P3.13–16** — Zigbee2MQTT -> Mosquitto -> Domoticz with the MG24 dongle:
+   `docs/zigbee2mqtt.md` is written, the remaining items need the dongle and the
+   board. Release as `v2.1.0`
+3. **P1.10 + 12** — Tailscale: `docs/tailscale.md` is written; the script step
+   and the README "Tested on"/License items remain
 4. **P4.17** — containerise the whole chain with rootful Podman, released as
    `v3.0.0`
 5. **P2.11 (v2.0.0)** — independent of the above: promote the pre-release once a
@@ -459,7 +473,8 @@ Decided on 2026-11-18:
   and a container memory cap as the OOM guard. No second host.
 - **Order:** Mosquitto authentication (P1.7) lands before any Zigbee work.
 - **Zigbee2MQTT packaging:** official image pinned by tag and digest, Node.js
-  from the image. Podman is therefore part of the Zigbee path, not just P4.
+  from the image. Z2M is containerised from the start, with `--memory=200m` and
+  the frontend disabled, so Podman is part of the Zigbee path, not just P4.
 - **Podman mode:** rootful. The whole chain (Domoticz, Mosquitto, Z2M) is
   containerised as the `v3.0.0` target; the native layout stays supported for
   `v2.x`.

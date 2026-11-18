@@ -100,6 +100,19 @@ Domoticz updater is disabled so the pinned version cannot drift.
 
 ---
 
+## 📚 Documentation
+
+| Guide | Status | Contents |
+| --- | --- | --- |
+| [Zigbee2MQTT](docs/zigbee2mqtt.md) | For the next release (`v2.1.0`) | SONOFF Dongle Plus MG24 (firmware 8.0.2, `ember`), Podman container with a 200 MB cap, MQTT Auto Discovery in Domoticz, pairing without the frontend |
+| [Tailscale](docs/tailscale.md) | Optional, recommended | Remote access as a VPN instead of port forwarding, ACLs, revocation |
+
+The Zigbee guide assumes this version of the installer (MQTT authentication
+included). It is documentation-first: everything runs as documented commands, no
+extra logic in `setup_domoticz.sh`.
+
+---
+
 ## 🗂️ Layout
 
 | Path | Purpose |
