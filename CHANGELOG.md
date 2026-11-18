@@ -7,6 +7,32 @@ All notable changes to this project are documented here. The format follows
 The public API is the installer CLI, the install layout, and the database
 location.
 
+## [Unreleased]
+
+### Fixed
+
+- Mosquitto listener verification no longer fails when `ss` lists the IPv6
+  loopback first, and it now rejects a non-local listener without `--mqtt-lan`
+  (previously it only required `127.0.0.1` to be present, so a wildcard listener
+  could slip through).
+- MQTT credentials are created before the broker configuration is written, and an
+  empty password file aborts with a clear message instead of leaving a broker
+  that refuses every client.
+- `docs/zigbee2mqtt.md`: replaced the invalid Quadlet `MemorySwap=` key with
+  `PodmanArgs=--memory-swap`, and corrected the startup instructions — Quadlet
+  units are generated at boot and cannot be `systemctl enable`d.
+- README uninstall now removes the Mosquitto configuration, the Tailscale apt
+  source and keyring, and the Zigbee2MQTT unit and data; the MQTT hardware
+  section states that only one gateway entry should be added.
+- Escaped a pipe in the Zigbee troubleshooting table so it renders.
+
+### Changed
+
+- CI lints `release/**` branches on push, so release candidates are covered
+  without a manual `workflow_dispatch`.
+- README and `PLAN.md` no longer call `v2.0.0` a stable release; it is still a
+  pre-release pending its hardware test.
+
 ## [2.1.0-rc1] - 2026-11-18
 
 > **RELEASE CANDIDATE — NOT PRODUCTION-READY.**

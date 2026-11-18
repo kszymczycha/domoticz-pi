@@ -4,7 +4,7 @@
 # Assumes a freshly installed Raspberry Pi OS Lite 64-bit (Debian 12 or newer)
 # with active Wi-Fi connection and SSH access.
 #
-# Usage: sudo ./setup_domoticz.sh [--mqtt-lan]
+# Usage: sudo ./setup_domoticz.sh [--mqtt-lan] [--tailscale]
 #
 # All downloaded artifacts are pinned to immutable versions and verified
 # against embedded SHA256 checksums before they are used.
@@ -292,8 +292,8 @@ setup_mosquitto() {
     require_cmd mosquitto_passwd
     require_cmd mosquitto_pub
 
-    write_mosquitto_config
     create_mosquitto_credentials
+    write_mosquitto_config
 
     echo "==> Restarting Mosquitto"
     systemctl enable mosquitto.service
@@ -321,6 +321,8 @@ write_mosquitto_config() {
 
 create_mosquitto_credentials() {
     if [ -f "$MQTT_PASSWD_FILE" ]; then
+        [ -s "$MQTT_PASSWD_FILE" ] \
+            || die "${MQTT_PASSWD_FILE} exists but is empty; remove it and re-run to generate credentials"
         echo "==> MQTT credentials: existing credentials unchanged"
         return
     fi
@@ -360,19 +362,33 @@ verify_mosquitto() {
         echo "==> MQTT: authenticated publish not tested (password unchanged and unknown)"
     fi
 
-    local listeners
+    local listeners addr
+    local local_ok=0 wildcard_ok=0
     listeners=$(ss -ltn | awk -v port=":${MQTT_PORT}" '$4 ~ port"$" {print $4}')
 
+    [ -n "$listeners" ] \
+        || die "Mosquitto is not listening on port ${MQTT_PORT}; check: systemctl status mosquitto.service"
+
+    # ss may list the IPv6 loopback before the IPv4 one, so match per line.
+    while IFS= read -r addr; do
+        case "$addr" in
+            "127.0.0.1:${MQTT_PORT}"|"[::1]:${MQTT_PORT}")
+                local_ok=1
+                ;;
+            "0.0.0.0:${MQTT_PORT}"|"[::]:${MQTT_PORT}"|"*:${MQTT_PORT}")
+                wildcard_ok=1
+                ;;
+        esac
+    done <<< "$listeners"
+
     if [ "$MQTT_LAN" -eq 1 ]; then
-        case "$listeners" in
-            *"0.0.0.0:${MQTT_PORT}"*|*"*:${MQTT_PORT}"*) ;;
-            *) die "expected a listener on 0.0.0.0:${MQTT_PORT}; found: ${listeners:-none}" ;;
-        esac
+        [ "$wildcard_ok" -eq 1 ] \
+            || die "expected a listener on 0.0.0.0:${MQTT_PORT}; found: ${listeners//$'\n'/, }"
     else
-        case "$listeners" in
-            127.0.0.1:"${MQTT_PORT}"*) ;;
-            *) die "expected a localhost-only listener on 127.0.0.1:${MQTT_PORT}; found: ${listeners:-none}" ;;
-        esac
+        [ "$wildcard_ok" -eq 0 ] \
+            || die "Mosquitto listens on a non-local address without --mqtt-lan: ${listeners//$'\n'/, }"
+        [ "$local_ok" -eq 1 ] \
+            || die "expected a listener on 127.0.0.1:${MQTT_PORT}; found: ${listeners//$'\n'/, }"
     fi
 }
 
@@ -465,7 +481,10 @@ verify_installation() {
         echo "  Username: ${MQTT_USER}"
         echo "  Password: ${MQTT_PASSWORD}"
         echo
-        echo "Add them in Domoticz under Setup > Hardware > MQTT Client Gateway."
+        echo "Add them in Domoticz under Setup > Hardware. Use"
+        echo "'MQTT Auto Discovery Client Gateway with LAN interface' for"
+        echo "Zigbee2MQTT, or 'MQTT Client Gateway with LAN interface' for raw"
+        echo "MQTT topics -- add one of them, not both."
     else
         echo "MQTT credentials were not changed; reuse the existing password."
     fi

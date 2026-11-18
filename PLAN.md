@@ -67,7 +67,9 @@ rows, the `CHANGELOG` pending list, and tag `v2.1.0`.
 - [x] **P0.4** Validation of architecture, required commands, and free space
 - [x] **P0.5** `DEBIAN_FRONTEND=noninteractive`
 - [x] **P1.6** Safe service-user detection (v2 uses a dedicated `domoticz` system user)
-- [x] **P2.10** ShellCheck CI (`.github/workflows/shellcheck.yml`)
+- [x] **P2.10** ShellCheck CI (`.github/workflows/shellcheck.yml`); also runs on
+      `release/*` pushes so release candidates are linted without a manual
+      dispatch
 - [x] **P2.11 (v1.0.0)** Tag and GitHub release for the Pi Zero W reference
 - [x] **v2.0.0 port** Domoticz 2026.4 aarch64, platform validation, no ARMv6
       workarounds, pinned artifact and checksum
@@ -161,7 +163,8 @@ node cuts access immediately.
       `SHA256SUMS` (<https://github.com/kszymczycha/domoticz-pi/releases/tag/v2.0.0>)
 - [ ] Test `v2.0.0` on a real Raspberry Pi Zero 2 W, record the test date, and
       promote it to a full release
-- [x] README points at the **v2.0.0 release asset**
+- [x] README points at the **release asset** of the current line
+      (`v2.1.0-rc1` on `release/v2.1.0`; `main` still points at `v2.0.0`)
 - [x] `release/v2.1.0` prepared: `feat/mqtt-auth`, `feat/zigbee-docs`, and
       `feat/tailscale-flag` merged, `CHANGELOG.md` written, README "Tested on"
       filled with `PENDING HARDWARE TEST`
@@ -254,20 +257,20 @@ there and in "Decisions").
 
 ### 15. Pairing, naming, and Domoticz mapping
 
-- [ ] Primary integration: native **MQTT Auto Discovery Client Gateway**. Devices
+- [x] Primary integration: native **MQTT Auto Discovery Client Gateway**. Devices
       are created from Z2M discovery topics once state arrives
-- [ ] Document the proven behaviour per device class (socket, relay, sensor) and
+- [ ] Record the proven behaviour per device class (socket, relay, sensor) and
       list any type that falls back to manual mapping
-- [ ] Fallback rule: manual topic mapping is allowed **only** for a specific
+- [x] Fallback rule: manual topic mapping is allowed **only** for a specific
       device that auto discovery cannot represent; the Python
       `domoticz-zigbee2mqtt` plugin is rejected as maintenance overhead
-- [ ] Document pairing: dongle in coordinator mode, pairing window, device reset,
+- [x] Document pairing: dongle in coordinator mode, pairing window, device reset,
       confirmation in Z2M logs/CLI
-- [ ] Naming convention in Z2M and how it maps to Domoticz names; no
+- [x] Naming convention in Z2M and how it maps to Domoticz names; no
       device-specific hardcoding in the installer
 - [ ] Confirm a paired Tuya device appears in Domoticz and responds to commands
       with the internet uplink blocked
-- [ ] Document removal/re-pair and recovery after a dongle replacement or a lost
+- [x] Document removal/re-pair and recovery after a dongle replacement or a lost
       Zigbee network key
 - [x] Documentation: "Device Support" table in `docs/zigbee2mqtt.md` with
       placeholder rows for Tuya sockets, relays, and sensors to be verified on
@@ -277,15 +280,15 @@ there and in "Decisions").
 
 - [ ] Broker authentication is mandatory (depends on P1.7); no anonymous access
       for Z2M or Domoticz
-- [ ] The Zigbee network key, MQTT credentials, and the Z2M `data/` directory
-      never enter the repository; document where they live on the device
-- [ ] Backup script: `tar` of the Z2M `data/` directory plus `domoticz.db`,
-      restored in a documented order
+- [x] The Zigbee network key, MQTT credentials, and the Z2M `data/` directory
+      never enter the repository; documented where they live on the device
+- [x] Backup: `tar` of the Z2M `data/` directory plus `domoticz.db`, with a
+      documented restore order
 - [ ] Test recovery after a reboot, after a broker restart, and after a dongle
       reconnect (state restored, no duplicate devices)
-- [ ] Upgrade procedure: pinned image bump, coordinator firmware updates, and the
+- [x] Upgrade procedure: pinned image bump, coordinator firmware updates, and the
       rollback step
-- [ ] Document the USB extension cable as a **hard requirement**: the dongle must
+- [x] Document the USB extension cable as a **hard requirement**: the dongle must
       be physically separated from the Pi and its power supply; pairing results
       without it are not accepted
 
@@ -315,7 +318,7 @@ dongle to the container and dealing with `dialout` ownership is far simpler and
 more reproducible than rootless with `--group-add keep-groups`. The trade-off
 (container root equals host root) must be documented, not hidden.
 
-Zigbee2MQTT already runs as a container from P3.14. This section turns the
+Zigbee2MQTT runs as a container from P3.14 onwards. This section turns the
 native Domoticz + Mosquitto install into containers and makes the container
 layout the supported one.
 
@@ -562,5 +565,7 @@ Rules:
   (`sudo apt-get install shellcheck`) or rely on the CI workflow
 - failure-path test: running without root exits with code 1
 - CLI test: `--help` exits 0, an unknown flag exits 2 and prints usage
+- CI covers `main` and `release/**`; a green run is a merge gate, not a
+  substitute for the hardware test
 - after install-flow changes: test on a real Raspberry Pi Zero 2 W with
   Raspberry Pi OS Lite 64-bit (Debian 12 or newer)

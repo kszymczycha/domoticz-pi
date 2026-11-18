@@ -73,7 +73,10 @@ artifacts, updating the README/PLAN, or preparing a release for
 4. Failure-path test: `./setup_domoticz.sh` without root must exit 1 with a
    clear message.
 5. Changes that affect the installation flow must be tested on a real Pi Zero 2 W
-   before merging. Use branch `feat/zero2w` for the v2 port.
+   before merging. Work goes on `main` for small fixes, or on a `release/vX.Y.Z`
+   branch for a release candidate; `feat/zero2w` is merged and must not be reused.
+6. Keep `README.md`, `PLAN.md`, `CHANGELOG.md`, and `docs/` in sync in the same
+   change; a guide that disagrees with the script is a bug in the guide.
 
 ## Bumping Domoticz artifacts
 

@@ -23,6 +23,7 @@ the 64-bit OS is a hard requirement.
 | Requirement | Why |
 | --- | --- |
 | Domoticz installed by `setup_domoticz.sh` | Provides the `domoticz` MQTT user |
+| Installer version `v2.1.0-rc1` or newer | Earlier releases had no MQTT authentication |
 | Mosquitto with authentication | Anonymous clients are rejected |
 | `podman` installed | Zigbee2MQTT runs as a container |
 | SONOFF Dongle Plus MG24 flashed with **coordinator firmware 8.0.2** | 8.0.2 is the tested baseline |
@@ -191,7 +192,7 @@ Image=ghcr.io/koenkk/zigbee2mqtt:2.14.3@sha256:<DIGEST>
 ContainerName=zigbee2mqtt
 Network=host
 Memory=200m
-MemorySwap=256m
+PodmanArgs=--memory-swap=256m
 Volume=/var/lib/zigbee2mqtt:/app/data
 AddDevice=/dev/ttyACM0
 Environment=TZ=Europe/Warsaw
@@ -208,23 +209,32 @@ Why these settings:
 
 - `Network=host`: the broker listens on `127.0.0.1:1883`, so the container must
   share the host network namespace. Nothing is published to the LAN.
-- `Memory=200m` with `MemorySwap=256m`: a hard cap so a Zigbee2MQTT memory spike
-  cannot push the 512 MB board into the OOM killer and take Domoticz with it.
-  Raise it to `256m` only if you observe repeated OOM kills.
+- `Memory=200m`: a hard cap so a Zigbee2MQTT memory spike cannot push the
+  512 MB board into the OOM killer and take Domoticz with it. Raise it to `256m`
+  only if you observe repeated OOM kills.
+- `PodmanArgs=--memory-swap=256m`: caps swap as well. Quadlet has no
+  `MemorySwap=` key of its own; passing the Podman flag through `PodmanArgs` is
+  the supported way.
 - `AddDevice=/dev/ttyACM0`: the node Podman creates in the container. Podman
   resolves `--device` symlinks when the container is created, so use the
   resolved node here and restart the service after a re-plug if the dongle
   comes back as `/dev/ttyACM1`.
+- `Environment=TZ=Europe/Warsaw`: adjust to your timezone.
 - Rootful Podman is deliberate: device access is simpler and reproducible than
   rootless with group workarounds.
 
-Enable and start:
+Start it:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now zigbee2mqtt.service
+sudo systemctl start zigbee2mqtt.service
 sudo systemctl status zigbee2mqtt.service --no-pager
 ```
+
+Quadlet units are generated at boot and **cannot be `systemctl enable`d** — the
+`[Install]` section in the unit above is what starts it on boot. Use
+`systemctl start` / `restart` / `stop`, and re-run `daemon-reload` after editing
+the unit.
 
 <details>
 <summary>Bookworm fallback (Podman 4.3, no Quadlet)</summary>
@@ -313,6 +323,18 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -u domoticz -P '<MQTT_PASSWORD>' \
 
 Naming rule: `room_function`, lowercase, no spaces. Domoticz names are derived
 from it, so decide once and stay consistent.
+
+Remove a device (force it, so it leaves the Zigbee network as well), then pair
+it again:
+
+```bash
+mosquitto_pub -h 127.0.0.1 -p 1883 -u domoticz -P '<MQTT_PASSWORD>' \
+  -t 'zigbee2mqtt/bridge/request/device/remove' \
+  -m '{"id": "kitchen_plug", "force": true}'
+```
+
+In Domoticz, delete the corresponding device afterwards; otherwise the old
+entry stays behind as a dead device.
 
 ---
 
@@ -428,7 +450,7 @@ Then remove the Domoticz MQTT hardware entry and the discovered devices.
 | --- | --- | --- |
 | `Error: ... ENOENT` or `permission denied` on the serial path | Device not passed into the container, or the dongle re-enumerated | Check `AddDevice`, then `systemctl restart zigbee2mqtt` |
 | `Coordinator firmware ... unsupported` | Old firmware (7.4.5) | Reflash 8.0.2 (section 2) |
-| `MQTT error: Connection refused` | Broker down or wrong host | `systemctl status mosquitto`, `ss -ltn | grep 1883` |
+| `MQTT error: Connection refused` | Broker down or wrong host | `systemctl status mosquitto`, `ss -ltn \| grep 1883` |
 | `MQTT error: Not authorized` | Wrong MQTT user/password, or the password file was reset | Re-enter the credentials printed by the installer |
 | No devices in Domoticz, but the Z2M log looks fine | `homeassistant.enabled` false, or the wrong AD hardware type | Section 8 and the `homeassistant/#` check |
 | Device pairs, then drops off | Weak link or interference | USB extension cable, more routers, change the Zigbee channel |
@@ -455,7 +477,10 @@ Rules for this table:
 - "Domoticz AD result" records whether MQTT Auto Discovery created usable
   devices. A partial result is a real finding, not a failure to hide.
 - If a model needs manual topic mapping, note the mapping here instead of
-  hardcoding anything in the installer.
+  hardcoding anything in the installer. Manual mapping is a per-device exception:
+  auto discovery stays the primary path.
+- The Python `domoticz-zigbee2mqtt` plugin is deliberately **not** used — its
+  maintenance cost is not justified when auto discovery covers the devices.
 
 ---
 
