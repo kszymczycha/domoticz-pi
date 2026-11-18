@@ -4,6 +4,8 @@
 # Assumes a freshly installed Raspberry Pi OS Lite 64-bit (Debian 12 or newer)
 # with active Wi-Fi connection and SSH access.
 #
+# Usage: sudo ./setup_domoticz.sh [--mqtt-lan]
+#
 # All downloaded artifacts are pinned to immutable versions and verified
 # against embedded SHA256 checksums before they are used.
 
@@ -21,6 +23,15 @@ INSTALL_DIR="/opt/domoticz"
 DATA_DIR="/var/lib/domoticz"
 SERVICE_USER="domoticz"
 HTTP_PORT="8080"
+
+# --- Mosquitto --------------------------------------------------------------
+MQTT_PORT="1883"
+MQTT_CONF_DIR="/etc/mosquitto/conf.d"
+MQTT_CONF_FILE="${MQTT_CONF_DIR}/domoticz.conf"
+MQTT_PASSWD_FILE="/etc/mosquitto/passwd"
+MQTT_USER="domoticz"
+MQTT_LAN=0
+MQTT_PASSWORD=""
 
 # Minimum free space required on the root filesystem.
 MIN_FREE_KB=524288 # 512 MB
@@ -40,6 +51,44 @@ trap cleanup EXIT
 die() {
     echo "ERROR: $*" >&2
     exit 1
+}
+
+usage() {
+    cat <<'EOF'
+Usage: sudo ./setup_domoticz.sh [options]
+
+Installs Domoticz and Mosquitto on a Raspberry Pi Zero 2 W running
+Raspberry Pi OS Lite 64-bit (Debian 12 or newer).
+
+Options:
+  --mqtt-lan   Let Mosquitto listen on 0.0.0.0:1883 instead of localhost only.
+               Authentication is always enabled. Open the firewall for port
+               1883 before using this flag.
+  -h, --help   Show this help and exit.
+
+Without --mqtt-lan the broker listens on 127.0.0.1:1883 only. Re-running the
+installer without the flag removes the LAN listener again.
+EOF
+}
+
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --mqtt-lan)
+                MQTT_LAN=1
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "ERROR: unknown option: $1" >&2
+                usage >&2
+                exit 2
+                ;;
+        esac
+        shift
+    done
 }
 
 require_cmd() {
@@ -65,7 +114,7 @@ preflight() {
 
     local cmd
     for cmd in apt-get awk basename chmod cp curl cut df find getent hostname install \
-        mktemp openssl rm sha256sum sleep systemctl tar tr useradd; do
+        mktemp openssl rm sha256sum sleep ss systemctl tar tr useradd; do
         require_cmd "$cmd"
     done
 
@@ -229,10 +278,93 @@ EOF
 }
 
 setup_mosquitto() {
-    echo "==> Enabling Mosquitto"
-    systemctl enable --now mosquitto.service
+    echo "==> Configuring Mosquitto authentication"
+
+    require_cmd mosquitto_passwd
+    require_cmd mosquitto_pub
+
+    write_mosquitto_config
+    create_mosquitto_credentials
+
+    echo "==> Restarting Mosquitto"
+    systemctl enable mosquitto.service
+    systemctl restart mosquitto.service || true
     systemctl is-active --quiet mosquitto.service \
-        || die "Mosquitto failed to start; check: systemctl status mosquitto.service"
+        || die "Mosquitto failed to start with the new configuration; check: systemctl status mosquitto.service"
+
+    verify_mosquitto
+}
+
+write_mosquitto_config() {
+    install -d -m 0755 "$MQTT_CONF_DIR"
+
+    {
+        echo "# Managed by setup_domoticz.sh; manual edits are overwritten."
+        echo "allow_anonymous false"
+        echo "password_file ${MQTT_PASSWD_FILE}"
+        if [ "$MQTT_LAN" -eq 1 ]; then
+            echo "listener ${MQTT_PORT} 0.0.0.0"
+        fi
+    } > "$MQTT_CONF_FILE"
+
+    chmod 0644 "$MQTT_CONF_FILE"
+}
+
+create_mosquitto_credentials() {
+    if [ -f "$MQTT_PASSWD_FILE" ]; then
+        echo "==> MQTT credentials: existing credentials unchanged"
+        return
+    fi
+
+    echo "==> Creating the MQTT user '${MQTT_USER}'"
+
+    MQTT_PASSWORD=$(openssl rand -hex 16)
+
+    local tmp
+    tmp=$(umask 077 && mktemp "${MQTT_PASSWD_FILE}.XXXXXX")
+    printf '%s:%s\n' "$MQTT_USER" "$MQTT_PASSWORD" > "$tmp"
+
+    if ! mosquitto_passwd -U "$tmp" >/dev/null 2>&1; then
+        rm -f "$tmp"
+        die "mosquitto_passwd failed to hash ${MQTT_PASSWD_FILE}"
+    fi
+
+    if grep -qF "$MQTT_PASSWORD" "$tmp"; then
+        rm -f "$tmp"
+        die "password file still contains plain text; refusing to install it"
+    fi
+
+    install -o mosquitto -g mosquitto -m 0600 "$tmp" "$MQTT_PASSWD_FILE"
+    rm -f "$tmp"
+}
+
+verify_mosquitto() {
+    if mosquitto_pub -h 127.0.0.1 -p "$MQTT_PORT" -t domoticz/install-test -m probe >/dev/null 2>&1; then
+        die "anonymous publish to Mosquitto succeeded; authentication is not enforced"
+    fi
+
+    if [ -n "$MQTT_PASSWORD" ]; then
+        mosquitto_pub -h 127.0.0.1 -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
+            -t domoticz/install-test -m probe \
+            || die "authenticated publish to Mosquitto failed"
+    else
+        echo "==> MQTT: authenticated publish not tested (password unchanged and unknown)"
+    fi
+
+    local listeners
+    listeners=$(ss -ltn | awk -v port=":${MQTT_PORT}" '$4 ~ port"$" {print $4}')
+
+    if [ "$MQTT_LAN" -eq 1 ]; then
+        case "$listeners" in
+            *"0.0.0.0:${MQTT_PORT}"*|*"*:${MQTT_PORT}"*) ;;
+            *) die "expected a listener on 0.0.0.0:${MQTT_PORT}; found: ${listeners:-none}" ;;
+        esac
+    else
+        case "$listeners" in
+            127.0.0.1:"${MQTT_PORT}"*) ;;
+            *) die "expected a localhost-only listener on 127.0.0.1:${MQTT_PORT}; found: ${listeners:-none}" ;;
+        esac
+    fi
 }
 
 verify_installation() {
@@ -264,11 +396,37 @@ verify_installation() {
     echo "  Data:      ${DATA_DIR}"
     echo "  Logs:      journalctl -u domoticz.service -f"
     echo
-    echo "Mosquitto is active with the default Debian configuration (localhost only)."
+
+    if [ "$MQTT_LAN" -eq 1 ]; then
+        echo "Mosquitto listens on 0.0.0.0:${MQTT_PORT}; anonymous access is refused."
+        echo "  Firewall:  ufw allow from <LAN> to any port ${MQTT_PORT}"
+        if command -v ufw >/dev/null 2>&1 \
+            && ufw status 2>/dev/null | grep -q "Status: inactive"; then
+            echo "WARNING: ufw is installed but inactive; port ${MQTT_PORT} is open to the whole network." >&2
+        fi
+    else
+        echo "Mosquitto listens on 127.0.0.1:${MQTT_PORT} only; anonymous access is refused."
+    fi
+
+    if [ -n "$MQTT_PASSWORD" ]; then
+        echo
+        echo "MQTT credentials for Domoticz (shown once, store them now):"
+        echo "  Host:     127.0.0.1 (or this Pi's LAN address)"
+        echo "  Port:     ${MQTT_PORT}"
+        echo "  Username: ${MQTT_USER}"
+        echo "  Password: ${MQTT_PASSWORD}"
+        echo
+        echo "Add them in Domoticz under Setup > Hardware > MQTT Client Gateway."
+    else
+        echo "MQTT credentials were not changed; reuse the existing password."
+    fi
+
+    echo
     echo "Default Domoticz login: admin / domoticz. Change the password immediately."
 }
 
 main() {
+    parse_args "$@"
     preflight
     install_packages
     download_domoticz

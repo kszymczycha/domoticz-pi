@@ -59,6 +59,17 @@ chmod +x setup_domoticz.sh
 sudo ./setup_domoticz.sh
 ```
 
+Optional flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--mqtt-lan` | Let the broker listen on `0.0.0.0:1883` (authentication is always on) |
+| `-h`, `--help` | Print usage and exit |
+
+An unknown flag exits with code 2. Re-running the installer is safe: it never
+overwrites an existing `domoticz.db`, never rotates the MQTT password, and
+rewrites the broker configuration from the flags you pass.
+
 The script performs all operations automatically. This may take 10 to 20 minutes
 depending on your SD card speed and internet connection.
 
@@ -78,10 +89,11 @@ depending on your SD card speed and internet connection.
 6. **Creates a hardened `systemd` service** with `ProtectSystem=strict`,
    `ProtectHome=true`, `NoNewPrivileges=true`, and a private temporary
    directory.
-7. **Enables the MQTT broker (Mosquitto)** with the default Debian
-   configuration (localhost only).
-8. **Verifies the result:** the service is active and the web interface answers
-   on port 8080.
+7. **Configures the MQTT broker (Mosquitto)** with mandatory authentication and
+   creates a `domoticz` MQTT user with a generated password, printed once at the
+   end. Anonymous clients are rejected.
+8. **Verifies the result:** the service is active, the web interface answers on
+   port 8080, an anonymous MQTT publish fails, and an authenticated one succeeds.
 
 Application files are never downloaded from a moving URL, and the internal
 Domoticz updater is disabled so the pinned version cannot drift.
@@ -95,6 +107,8 @@ Domoticz updater is disabled so the pinned version cannot drift.
 | `/opt/domoticz` | binary, web interface, configuration templates |
 | `/var/lib/domoticz` | `domoticz.db`, plugins, scripts, backups |
 | `/etc/systemd/system/domoticz.service` | service unit |
+| `/etc/mosquitto/conf.d/domoticz.conf` | broker authentication and listener |
+| `/etc/mosquitto/passwd` | MQTT users (mode `0600`, owner `mosquitto`) |
 | `journalctl -u domoticz.service` | logs |
 
 Back up the database with:
@@ -125,6 +139,78 @@ navigate to:
    trusted LAN that is usually acceptable; otherwise restrict it with your
    firewall, for example:
    `sudo ufw allow from <LAN_SUBNET> to any port 8080`.
+
+---
+
+## 🔐 MQTT broker (Mosquitto)
+
+The installer configures the broker for authenticated access only:
+
+- `/etc/mosquitto/conf.d/domoticz.conf` sets `allow_anonymous false` and
+  `password_file /etc/mosquitto/passwd`.
+- A user `domoticz` is created with a generated password. The password is
+  printed **once** at the end of the installation and is never stored in this
+  repository.
+- By default the broker listens on `127.0.0.1:1883` only.
+
+> ⚠️ **Authentication is always on.** Every client — Domoticz, Zigbee2MQTT, an
+> ESP, `mosquitto_pub` — must send the username and password. If you point an
+> existing client at this broker without credentials, it will silently fail to
+> connect.
+
+### LAN access (`--mqtt-lan`)
+
+Other hosts on the LAN (for example a Zigbee2MQTT instance on a more powerful
+machine) need a reachable listener:
+
+```bash
+sudo ./setup_domoticz.sh --mqtt-lan
+```
+
+This adds `listener 1883 0.0.0.0`, restarts Mosquitto, and prints the matching
+firewall rule. Open the firewall yourself and prefer limiting it to the LAN:
+
+```bash
+sudo ufw allow from <LAN_SUBNET> to any port 1883
+```
+
+Re-running the installer **without** `--mqtt-lan` removes the LAN listener
+again. Authentication stays enabled in both cases.
+
+### Add the broker to Domoticz
+
+1. Open *Setup → Hardware*.
+2. Add **MQTT Client Gateway with LAN interface** (or **MQTT Auto Discovery
+   Client Gateway** for auto-discovery; the Zigbee guide will document which one
+   is used).
+3. Fill in:
+   - *Remote Address:* `127.0.0.1` — or the Pi's LAN address with `--mqtt-lan`
+   - *Port:* `1883`
+   - *Username:* `domoticz`
+   - *Password:* the value printed by the installer
+4. Save, then add devices under *Setup → Devices*.
+
+To verify the broker by hand:
+
+```bash
+# Must fail: anonymous access is refused.
+mosquitto_pub -h 127.0.0.1 -p 1883 -t domoticz/test -m hello
+
+# Must succeed with the printed credentials.
+mosquitto_pub -h 127.0.0.1 -p 1883 -u domoticz -P '<password>' -t domoticz/test -m hello
+```
+
+### Lost the MQTT password?
+
+The installer never rotates an existing password file. To reset it, remove the
+file and run the installer again:
+
+```bash
+sudo rm /etc/mosquitto/passwd
+sudo ./setup_domoticz.sh
+```
+
+Then update the credentials in Domoticz and in every other MQTT client.
 
 ---
 
