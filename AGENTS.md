@@ -14,6 +14,8 @@ running Raspberry Pi OS Lite 64-bit (aarch64, Debian 12 or newer).
   history: `CHANGELOG.md`. Hardware status: the "Tested on" table in `README.md`.
 - Take the first unchecked item in the suggested order unless told otherwise,
   skipping anything that needs the physical board or the Zigbee coordinator.
+- End every session with a short entry in the "Session log" at the end of
+  `PLAN.md`. It is the only memory across sessions.
 
 ## Non-negotiables
 

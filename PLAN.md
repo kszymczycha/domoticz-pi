@@ -613,3 +613,65 @@ Rules:
   substitute for the hardware test
 - after install-flow changes: test on a real Raspberry Pi Zero 2 W with
   Raspberry Pi OS Lite 64-bit (Debian 12 or newer)
+
+## Session log
+
+Append-only. One entry per working session: what changed, what was decided, what
+the next session should pick up. Newest last; keep each entry to a few bullets.
+`git log` remains the source of truth for code and full commit messages.
+
+### 2026-11-12
+
+- Hardened the original installer: `set -euo pipefail`, error trap, pinned
+  artifacts with SHA256, platform validation, `DEBIAN_FRONTEND=noninteractive`.
+- Decided: generated MQTT password, never rotated on re-run; broker
+  localhost-only unless a future `--mqtt-lan` flag is passed.
+- Tagged and published `v1.0.0` for the Pi Zero W (ARMv6) as the frozen
+  reference.
+
+### 2026-11-16
+
+- Dropped the Pi Zero W line: `v2.0.0` targets the Zero 2 W only, uses the
+  official `aarch64` build, `/opt/domoticz` + `/var/lib/domoticz`, a dedicated
+  system user, a hardened unit, and journal logging.
+- Published `v2.0.0` as a pre-release; hardware test still outstanding.
+- Recorded the layout decision and the no-ARMv6 rule in this file.
+
+### 2026-11-18 (morning)
+
+- Narrowed P3 to a single integration path: MG24 -> Zigbee2MQTT -> Mosquitto ->
+  Domoticz; Tuya Wi-Fi, Tuya cloud, deCONZ, Thread/Matter out of scope.
+- Took the 2026-11-18 decisions: MQTT Auto Discovery only, coordinator firmware
+  8.0.2 with `ember`, everything on the Zero 2 W, Mosquitto auth before Zigbee,
+  Zigbee2MQTT as a pinned container, rootful Podman as the `v3.0.0` layout, USB
+  extension cable mandatory, Tailscale for remote access.
+- Added the "Open questions" section with resolved decisions and remaining
+  unknowns.
+
+### 2026-11-18 (afternoon)
+
+- Implemented P1.7 on `feat/mqtt-auth`: Mosquitto authentication, hashed
+  password from a `0600` temp file, `--mqtt-lan`, `--help`, self-verification
+  (anonymous publish must fail, authenticated must succeed, `ss` listener check).
+- Wrote `docs/zigbee2mqtt.md` (firmware, serial path, Quadlet unit, pairing over
+  MQTT, AD wiring, backups, Device Support table) and `docs/tailscale.md`.
+- Implemented the optional `--tailscale` step (repo + package + `tailscaled`,
+  never logs the node in).
+- Confirmed in the Domoticz UI: hardware type "MQTT Auto Discovery Client
+  Gateway with LAN interface", field **"MQTT Discovery Prefix"** =
+  `homeassistant`.
+
+### 2026-11-18 (evening)
+
+- Cut `v2.1.0-rc1` from `release/v2.1.0` (pre-release, assets verified).
+- Full review of every file: fixed a critical listener-check bug (multi-line
+  `ss` output), a missing wildcard rejection, credential/config ordering, the
+  invalid Quadlet `MemorySwap=` key, `systemctl enable` on a Quadlet unit, a
+  broken Markdown table, and the incomplete uninstall. Audited the Domoticz
+  binary dependencies with `readelf`; all required libraries are installed.
+- Cut `v2.1.0-rc2` (supersedes rc1) and pointed the README at it.
+- Synced `PLAN.md`, `AGENTS.md`, and the skill with the rc2 state; documented the
+  GitHub API publishing path for hosts without `gh`.
+- Next session: hardware test list from `README.md` ("Tested on"), then update
+  the rows, `CHANGELOG`, and tag `v2.1.0`; promote `v2.0.0` in the same session
+  if it passes. No code work is pending that does not need the board.

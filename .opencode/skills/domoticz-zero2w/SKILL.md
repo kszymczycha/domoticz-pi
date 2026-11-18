@@ -93,6 +93,10 @@ artifacts, updating the README/PLAN, or preparing a release for
    branch for a release candidate; `feat/zero2w` is merged and must not be reused.
 6. Keep `README.md`, `PLAN.md`, `CHANGELOG.md`, and `docs/` in sync in the same
    change; a guide that disagrees with the script is a bug in the guide.
+7. Append a short entry to the "Session log" at the end of `PLAN.md` before the
+   session ends: what changed, what was decided, and what the next session
+   should pick up. This is the handoff mechanism — a fresh session starts from
+   `git log`, `PLAN.md`, and the skill, with no memory of the previous chat.
 
 ## Bumping Domoticz artifacts
 
