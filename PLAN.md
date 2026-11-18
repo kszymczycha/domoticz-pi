@@ -7,11 +7,11 @@ Status as of 2026-11-16:
   to `main` and published as a pre-release. It awaits a hardware test before
   being promoted to a full release.
 
-**Next action:** **P1.7 (Mosquitto authentication)** on `main`. It is the
-prerequisite for the whole Zigbee chain: no anonymous broker, not even
-temporarily. The `v2.0.0` hardware test stays the gate for promoting that
-pre-release and can happen whenever the board is available; it no longer blocks
-P1/P3.
+**Next action:** test `feat/mqtt-auth` on a real Zero 2 W (fresh install, `--help`,
+unknown flag exits 2, anonymous publish rejected, credentials printed once,
+re-run leaves them unchanged, `--mqtt-lan` adds and removes the listener), then
+merge it to `main`. After that: **P1.10 (Tailscale)** and **P3.13 (Zigbee2MQTT
+discovery)**.
 
 ## Context for the next session
 
@@ -77,16 +77,21 @@ P1/P3.
 
 ### 7. Mosquitto configuration
 
-The broker is installed and enabled, but authentication is not configured yet:
+The broker is installed, enabled, and now requires authentication:
 
-- [ ] `/etc/mosquitto/conf.d/domoticz.conf`: `allow_anonymous false`, `password_file /etc/mosquitto/passwd`
-- [ ] Add `--mqtt-lan` and `--help` flags to the installer
-- [ ] Create the `domoticz` MQTT user with a generated password (`openssl rand -hex 16`), printed once; skip creation if the password file already exists
-- [ ] Require `openssl` (already used for the version check)
-- [ ] `listener 1883 0.0.0.0` only behind `--mqtt-lan`
-- [ ] Restart Mosquitto after writing the config and verify auth: anonymous publish rejected, authenticated publish accepted
-- [ ] README: how to add the broker as a "hardware" entry in Domoticz and how to add more devices
-- [ ] README: clear warning that enabling auth requires configuring credentials in Domoticz/ESP, otherwise things stop working
+- [x] `/etc/mosquitto/conf.d/domoticz.conf`: `allow_anonymous false`, `password_file /etc/mosquitto/passwd`
+- [x] Add `--mqtt-lan` and `--help` flags to the installer
+- [x] Create the `domoticz` MQTT user with a generated password (`openssl rand -hex 16`), printed once; skip creation if the password file already exists
+- [x] Require `openssl` (already used for the version check) plus `mosquitto_passwd`, `mosquitto_pub`, and `ss`
+- [x] `listener 1883 0.0.0.0` only behind `--mqtt-lan`
+- [x] Restart Mosquitto after writing the config and verify auth: anonymous publish rejected, authenticated publish accepted
+- [x] README: how to add the broker as a "hardware" entry in Domoticz and how to add more devices
+- [x] README: clear warning that enabling auth requires configuring credentials in Domoticz/ESP, otherwise things stop working
+- [ ] Test on a real Zero 2 W: `--help`, unknown flag (exit 2), fresh install,
+      re-run (credentials unchanged), `--mqtt-lan` add/remove, password reset
+
+Passwords are hashed with `mosquitto_passwd -U` from a `0600` temporary file so
+the plain text never appears in a process argument.
 
 Out of scope: TLS — its performance cost on a Pi Zero 2 W is still
 disproportionate for a home LAN.
@@ -110,7 +115,7 @@ Implementation contract:
 
 - [x] README: port 8080 listens on `0.0.0.0`; show `ufw allow from <LAN> to any port 8080`
 - [x] README: stronger warning about `admin/domoticz`
-- [ ] With `--mqtt-lan`, print the `ufw` rule for port 1883 and warn if the firewall is inactive (never install `ufw` silently)
+- [x] With `--mqtt-lan`, print the `ufw` rule for port 1883 and warn if the firewall is inactive (never install `ufw` silently)
 
 ### 10. Remote access with Tailscale
 
@@ -376,9 +381,9 @@ the roadmap; the binding summary is in "Decisions".
 
 ## Suggested order
 
-1. **P1.7 (Mosquitto auth)** — prerequisite for every Zigbee step; the broker is
-   never anonymous, not even temporarily
-2. **P1.10 + 9 + 12** — Tailscale, firewall hints, and the remaining README work
+1. **P1.7 (Mosquitto auth)** — implemented on `feat/mqtt-auth`; awaits the
+   hardware test before merging to `main`
+2. **P1.10 + 12** — Tailscale, "Tested on", License, and the remaining README work
 3. **P3.13–16** — Zigbee2MQTT -> Mosquitto -> Domoticz with the MG24 dongle
    (docs + optional helpers), released as `v2.1.0`
 4. **P4.17** — containerise the whole chain with rootful Podman, released as
@@ -519,5 +524,6 @@ Rules:
 - `shellcheck setup_domoticz.sh` (zero findings) — install it locally
   (`sudo apt-get install shellcheck`) or rely on the CI workflow
 - failure-path test: running without root exits with code 1
+- CLI test: `--help` exits 0, an unknown flag exits 2 and prints usage
 - after install-flow changes: test on a real Raspberry Pi Zero 2 W with
   Raspberry Pi OS Lite 64-bit (Debian 12 or newer)
