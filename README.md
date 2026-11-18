@@ -48,7 +48,8 @@ physical hardware yet**.
 | Tailscale step (`--tailscale`, `tailscaled` active) | Official Tailscale repository | PENDING HARDWARE TEST |
 | Zigbee2MQTT container on Podman (Quadlet `AddDevice`, `Memory=200m`, dongle re-plug) | Podman on Trixie, image `2.14.3` | PENDING HARDWARE TEST |
 | Coordinator firmware and adapter reported in the Z2M log (8.0.2, `ember` at 115200) | SONOFF Dongle Plus MG24 | PENDING HARDWARE TEST |
-| Domoticz MQTT Auto Discovery field names and per-device coverage (sockets, relays, sensors) | Domoticz 2026.4 AD gateway | PENDING HARDWARE TEST |
+| Domoticz AD hardware type and the `MQTT Discovery Prefix` field name | Domoticz UI, *Setup → Hardware* | `[OK - UI verified]`: type "MQTT Auto Discovery Client Gateway with LAN interface", prefix `homeassistant` |
+| Domoticz MQTT Auto Discovery per-device coverage (sockets, relays, sensors) | Domoticz 2026.4 AD gateway | PENDING HARDWARE TEST |
 | Pairing window over MQTT (`{"time": 254}`) | Zigbee2MQTT 2.14.3 | PENDING HARDWARE TEST |
 | Memory cap behaviour under pairing load (512 MB board) | Podman `Memory=200m` | PENDING HARDWARE TEST |
 

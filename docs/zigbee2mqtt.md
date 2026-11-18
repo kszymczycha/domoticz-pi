@@ -325,9 +325,13 @@ from it, so decide once and stay consistent.
    - *Port*: `1883`
    - *Username*: `domoticz`
    - *Password*: the value printed by `setup_domoticz.sh`
-   - *Auto discovery topic prefix*: `homeassistant`
+   - *MQTT Discovery Prefix*: `homeassistant`
 4. Save, wait a minute, then open *Setup → Devices*. Discovered devices arrive
    as unused; add the ones you want.
+
+`MQTT Discovery Prefix` is the exact label in the Domoticz UI; older guides call
+it the "auto discovery topic prefix". The value `homeassistant` matches what
+Zigbee2MQTT publishes — leave it as the default.
 
 Devices are created when Zigbee2MQTT publishes a discovery config **and** the
 first state message arrives. Power-cycle a sensor if it stays hidden.

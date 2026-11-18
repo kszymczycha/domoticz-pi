@@ -7,11 +7,10 @@ Status as of 2026-11-16:
   to `main` and published as a pre-release. It awaits a hardware test before
   being promoted to a full release.
 
-**Next action:** publish `v2.1.0-rc1` from `release/v2.1.0` as a pre-release
-(`setup_domoticz.sh` + `SHA256SUMS`). Once the board and the dongle are
-available, run the `PENDING HARDWARE TEST` list from the README, then update
-those rows, the `CHANGELOG` pending list, and tag `v2.1.0`. `feat/mqtt-auth`
-still needs its own hardware check before it can be considered stable.
+**Next action:** `v2.1.0-rc1` is prepared and its download links are live in the
+README. Development is **paused** until the Pi Zero 2 W and the MG24 dongle
+arrive; then run the `PENDING HARDWARE TEST` list from the README, update the
+rows, the `CHANGELOG` pending list, and tag `v2.1.0`.
 
 ## Context for the next session
 
@@ -217,9 +216,11 @@ the Zigbee2MQTT path cannot cover a specific device.
       supports coordinator firmware 8.0.2
 - [ ] Inventory the Tuya Zigbee devices (sockets, relays, sensors) and confirm
       each model is in the Z2M supported-devices list without custom quirks
-- [ ] Record how far Domoticz's **MQTT Auto Discovery Client Gateway** gets with
-      this Z2M version: which device types are created automatically and which
-      appear as unused or not at all
+- [x] Confirm the Domoticz side of the wiring: hardware type **MQTT Auto
+      Discovery Client Gateway with LAN interface** and the field **"MQTT
+      Discovery Prefix"** set to `homeassistant` (verified in the UI)
+- [ ] Record how far that gateway gets with this Z2M version: which device types
+      are created automatically and which appear as unused or not at all
 
 Open questions: see "Open questions" below (the P3 decisions are recorded
 there and in "Decisions").
@@ -380,12 +381,15 @@ the roadmap; the binding summary is in "Decisions".
 | 8 | Z2M versioning and Node.js | Pin the **official image by tag and digest**; Node.js comes from the image. No system Node.js. Z2M is containerised from the start (confirmed), so Podman is a requirement of the Zigbee path. |
 | 9 | Backups | One script: `tar` of Z2M `data/` plus `domoticz.db`, with a documented restore order. |
 | 10 | Remote access | **Tailscale** VPN (P1.10). No port forwarding, no public exposure. |
+| 11 | Domoticz AD wiring | Hardware type "MQTT Auto Discovery Client Gateway with LAN interface"; field **"MQTT Discovery Prefix"** = `homeassistant`. Verified in the UI; documented in `docs/zigbee2mqtt.md` section 8. |
 
 ### Still open
 
 - **Auto-discovery coverage:** which Tuya types (thermostats, covers, multi-gang
-  switches) are actually created by Domoticz auto discovery. Only measurable
-  with the devices on the desk; the fallback list depends on it.
+  switches) are actually created by Domoticz auto discovery. The hardware type
+  and the `MQTT Discovery Prefix` field are confirmed; the per-device coverage is
+  only measurable with the devices on the desk, and the fallback list depends on
+  it.
 - **Firmware pinning mechanics:** the SONOFF flasher is browser-based, so there
   is no checksum to embed. Decide whether to record only the version string or
   also archive the firmware file and its SHA256 in the docs.
