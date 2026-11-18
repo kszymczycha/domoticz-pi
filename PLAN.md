@@ -1,11 +1,14 @@
 # Development Roadmap
 
-Status as of 2026-11-16:
+Status as of 2026-11-18:
 
 - `v1.0.0` is the frozen Raspberry Pi Zero W (ARMv6) reference.
 - The current line targets the Raspberry Pi Zero 2 W only: `v2.0.0` is merged
   to `main` and published as a pre-release. It awaits a hardware test before
   being promoted to a full release.
+- `v2.1.0-rc2` is published as a pre-release from `release/v2.1.0` (MQTT
+  authentication, Zigbee2MQTT guide, Tailscale). It supersedes `rc1` and awaits
+  the hardware test list in `README.md`.
 
 **Next action:** `v2.1.0-rc2` is prepared and its download links are live in the
 README. Development is **paused** until the Pi Zero 2 W and the MG24 dongle
@@ -55,6 +58,9 @@ rows, the `CHANGELOG` pending list, and tag `v2.1.0`.
 - Deployment guides live in `docs/`. They are written first, then verified on
   hardware; when a guide and the script disagree, the script wins and the guide
   is a bug.
+- Current work happens on `release/v2.1.0`; `main` keeps the `v2.0.0` line until
+  the RC passes the hardware test and is merged. `CHANGELOG.md` records every
+  released tag, including release candidates.
 
 ## Done
 
@@ -75,6 +81,14 @@ rows, the `CHANGELOG` pending list, and tag `v2.1.0`.
       workarounds, pinned artifact and checksum
 - [x] **P1.8 (layout)** `/opt/domoticz`, `/var/lib/domoticz`, dedicated system
       user, hardened unit, journal logging
+- [x] **P1.7 / v2.1.0** Mandatory MQTT authentication, `--mqtt-lan`, `--help`,
+      credential hashing and self-verification
+- [x] **P1.10 / v2.1.0** Optional `--tailscale` step and `docs/tailscale.md`
+- [x] **P3 docs / v2.1.0** `docs/zigbee2mqtt.md` (MG24, firmware 8.0.2, `ember`,
+      container unit, MQTT Auto Discovery, pairing, backups, Device Support table)
+- [x] **P2.11 / v2.1.0-rc2** `release/v2.1.0`, `CHANGELOG.md`, README "Tested on",
+      rc1 and rc2 published as pre-releases
+- [x] `main` and `release/v2.1.0` pushed; CI lints both (`release/**`)
 - [x] README: current board/OS, install from the release asset, layout, backup,
       database migration, firewall hint, uninstall
 
@@ -398,16 +412,17 @@ the roadmap; the binding summary is in "Decisions".
 - **Firmware pinning mechanics:** the SONOFF flasher is browser-based, so there
   is no checksum to embed. Decide whether to record only the version string or
   also archive the firmware file and its SHA256 in the docs.
-- **Z2M image availability for `arm64`:** confirm the pinned tag publishes an
-  `arm64` manifest before writing the guide.
+- **Z2M image availability for `arm64`:** the guide assumes the pinned tag
+  publishes an `arm64` manifest; confirm it on the board (and record the digest
+  that was actually used).
 - **RAM headroom:** real RSS of containerised Z2M + Podman + Domoticz on 512 MB,
   including a pairing burst and a 24-hour run.
 - **Podman on Trixie:** Quadlet version, cgroup delegation, and whether extra
   kernel parameters are needed for the memory cap.
 - **SD-card wear:** whether Z2M plus Domoticz logging on the SD card requires
   journald tuning or a log-to-RAM option.
-- **Tailscale footprint:** `tailscaled` RSS and whether it should be an optional
-  documented step instead of part of the default install.
+- **Tailscale footprint:** `tailscaled` RSS on the Zero 2 W (the step itself is
+  already optional via `--tailscale`).
 - **Release shape for P4:** a separate script, Quadlet files in the repo, or a
   documented compose file — and whether native and container modes share a
   migration tool.
@@ -417,18 +432,14 @@ the roadmap; the binding summary is in "Decisions".
 
 ## Suggested order
 
-1. **P1.7 (Mosquitto auth)** — implemented on `feat/mqtt-auth`; awaits the
-   hardware test before merging to `main`
-2. **P3.13–16** — Zigbee2MQTT -> Mosquitto -> Domoticz with the MG24 dongle:
-   `docs/zigbee2mqtt.md` is written, the remaining items need the dongle and the
-   board. Release as `v2.1.0`
-3. **P1.10 + 12** — Tailscale: `docs/tailscale.md` is written; the script step
-   and the README "Tested on"/License items remain
-4. **P4.17** — containerise the whole chain with rootful Podman, released as
+1. **Hardware test of `v2.1.0-rc2`** — run the `PENDING HARDWARE TEST` list from
+   the README on the real Pi Zero 2 W with the MG24 dongle, update the rows and
+   the `CHANGELOG`, then tag `v2.1.0` from `release/v2.1.0` (and promote
+   `v2.0.0` in the same session if it passes)
+2. **`v2.1.0` documentation merge** — merge `release/v2.1.0` into `main`, point
+   the README at the final asset, publish the full release
+3. **P4.17** — containerise the whole chain with rootful Podman, released as
    `v3.0.0`
-5. **P2.11 (v2.0.0)** — independent of the above: promote the pre-release once a
-   real Zero 2 W test happens (do it whenever the board is available; it does
-   not block P1/P3)
 
 ## Acceptance criteria
 
@@ -436,6 +447,10 @@ the roadmap; the binding summary is in "Decisions".
   an existing `/var/lib/domoticz/domoticz.db` is preserved; the web UI answers on
   port 8080 after a reboot; the service starts under the `domoticz` user; the
   unit passes a `systemd-analyze security` review; Mosquitto is active.
+- **v2.1.0:** everything above, plus authenticated MQTT with the listener
+  localhost-only by default; `--mqtt-lan`, `--help`, and `--tailscale` behave as
+  documented; a Tuya Zigbee device pairs through the MG24 and is created in
+  Domoticz by MQTT Auto Discovery with the uplink blocked.
 - **7 (Mosquitto):** anonymous publish is rejected; publishing with the generated
   credentials succeeds; re-running the installer does not rotate credentials; the
   listener is localhost-only without `--mqtt-lan` and `0.0.0.0` with it; the
@@ -556,6 +571,12 @@ Rules:
 - The Zero 2 W port is merged on `main`. `v2.0.0` stays a pre-release until a
   successful test on a real Raspberry Pi Zero 2 W; promote it to a full release
   afterwards. Fix forward with patch releases if the test finds issues.
+- Release candidates live on `release/vX.Y.Z`: features merge there with
+  `--no-ff`, an RC gets an annotated tag and a GitHub **pre-release**, and the
+  final tag is created only after the hardware test. `v2.1.0` uses this flow
+  (`v2.1.0-rc1`, superseded by `v2.1.0-rc2`).
+- Feature branches (`feat/*`, `fix/*`) are pushed for review and merged into the
+  release branch or `main`; they are not permanent.
 - `maint/1.x` is frozen. Do not use it for new work.
 - Keep `main` releasable; never force-push `main` except for history rewrites
   agreed in advance.

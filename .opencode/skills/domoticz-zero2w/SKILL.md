@@ -28,17 +28,23 @@ artifacts, updating the README/PLAN, or preparing a release for
   Zigbee coordinator (firmware 8.0.2, adapter `ember`, never `ezsp`). Tuya
   Wi-Fi, the Tuya cloud/gateway, deCONZ, and Thread/Matter are out of scope.
   Documentation first; no device logic in `setup_domoticz.sh`.
-- Domoticz consumes Zigbee2MQTT through native MQTT Auto Discovery; manual topic
-  mapping is a per-device fallback, the Python plugin is rejected.
-- Zigbee2MQTT runs as a pinned official Podman image (Node.js from the image);
-  `frontend: false` by default on the 512 MB board.
-- Podman (P4) is rootful and targets the whole chain as the `v3.0.0` layout; the
-  native install stays the `v2.x` path. Never run both on one host, never mix the
-  two in one script.
-- Remote access is Tailscale only (P1.10); no port forwarding, no public
-  exposure.
-- Mosquitto authentication (P1.7) is a prerequisite: no anonymous broker, not
-  even temporarily.
+- Domoticz consumes Zigbee2MQTT through native MQTT Auto Discovery. The verified
+  UI wiring is hardware type "MQTT Auto Discovery Client Gateway with LAN
+  interface" with **"MQTT Discovery Prefix"** = `homeassistant`; Zigbee2MQTT must
+  publish HA discovery (`homeassistant.enabled: true`). Manual topic mapping is a
+  per-device fallback, the Python plugin is rejected.
+- Zigbee2MQTT runs as a pinned official Podman image (tag **and** digest,
+  Node.js from the image) with `frontend.enabled: false` and a 200 MB memory cap
+  on the 512 MB board. Podman is rootful.
+- Podman (P4) targets the whole chain as the `v3.0.0` layout; the native install
+  stays the `v2.x` path. Never run both on one host, never mix the two in one
+  script.
+- Remote access is Tailscale only (P1.10), installed behind the optional
+  `--tailscale` flag; no port forwarding, no public exposure, no automatic login.
+- Mosquitto authentication is live since `v2.1.0-rc1`: anonymous access is
+  rejected and verified by the installer, not planned.
+- Docs live in `docs/` (`zigbee2mqtt.md`, `tailscale.md`); `CHANGELOG.md` records
+  released tags, `README.md` carries the "Tested on" table.
 
 ## Invariants
 
@@ -58,10 +64,20 @@ artifacts, updating the README/PLAN, or preparing a release for
 - Never host Domoticz binaries in releases (GPLv3 requires offering the source).
 - Never overwrite an existing `/var/lib/domoticz/domoticz.db`.
 - The script must fail fast and report the failing line.
+- MQTT authentication stays mandatory: never write a config with
+  `allow_anonymous true`, and never rotate or delete an existing password file
+  on re-run.
+- The broker stays on `127.0.0.1:1883` unless `--mqtt-lan` is passed; the
+  installer verifies the listener with `ss` and must reject a wildcard listener
+  without the flag.
+- `--tailscale` never logs the node in: no auth key in the script, in commits,
+  or in shell history.
 
 ## Workflow for script changes
 
-1. Read `PLAN.md` and pick an unchecked item.
+1. Read `PLAN.md` and pick the first unchecked item that is not blocked on
+   hardware; the plan's "Next action" is authoritative when development is
+   paused.
 2. Edit `setup_domoticz.sh`.
 3. Run the checks:
 
@@ -71,7 +87,7 @@ artifacts, updating the README/PLAN, or preparing a release for
    ```
 
 4. Failure-path test: `./setup_domoticz.sh` without root must exit 1 with a
-   clear message.
+   clear message. Also check `--help` (exit 0) and an unknown flag (exit 2).
 5. Changes that affect the installation flow must be tested on a real Pi Zero 2 W
    before merging. Work goes on `main` for small fixes, or on a `release/vX.Y.Z`
    branch for a release candidate; `feat/zero2w` is merged and must not be reused.
@@ -97,12 +113,22 @@ artifacts, updating the README/PLAN, or preparing a release for
 
 ## Release
 
-1. Confirm CI is green and the release was tested on a real Pi Zero 2 W.
-2. `git tag -a vX.Y.Z -m "<summary>"` and push the explicit tag ref.
-3. Create a GitHub release with `setup_domoticz.sh` and `SHA256SUMS` assets.
-   Name the supported board, Domoticz version, OS baseline, and test date in the
-   release notes.
-4. Point the README download URL at the pinned release asset, not at `main`.
+Release candidates ship first; the final tag waits for the hardware test.
+
+1. `git switch release/vX.Y.Z`, confirm CI is green (it lints `release/**` on
+   push).
+2. Cut an RC: `git tag -a vX.Y.Z-rcN -m "<summary>"`, push the tag, and create a
+   GitHub **pre-release** (`--prerelease`) with `setup_domoticz.sh` +
+   `SHA256SUMS` and notes from a file:
+   `gh release create vX.Y.Z-rcN --verify-tag --prerelease --title ... --notes-file ... <assets>`.
+3. Note in the notes what changed since the previous RC and that it supersedes
+   it.
+4. After the hardware test on a real Pi Zero 2 W: update the README "Tested on"
+   rows and the `CHANGELOG` pending list with the date and results.
+5. Only then tag `vX.Y.Z`, publish the full release, merge the release branch to
+   `main`, and point the README download URL at the final asset.
+6. Regenerate `SHA256SUMS` from the exact tagged `setup_domoticz.sh`; never reuse
+   an older checksum after touching the script.
 
 ## Git rules
 
@@ -114,4 +140,7 @@ artifacts, updating the README/PLAN, or preparing a release for
   release.
 - `main` stays releasable; do not force-push it except for an agreed history
   rewrite.
-- Update `PLAN.md` checkboxes when an item is completed.
+- Update `PLAN.md` checkboxes when an item is completed; keep `CHANGELOG.md` and
+  the README "Tested on" rows in step with it.
+- Release candidates use `release/vX.Y.Z` and `vX.Y.Z-rcN` tags; a published RC
+  tag is never moved — cut the next RC instead (`rc1` -> `rc2` is the precedent).
