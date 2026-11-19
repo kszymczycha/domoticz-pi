@@ -19,6 +19,38 @@ a hardened `systemd` unit.
 
 ---
 
+## 🧭 Architecture
+
+```mermaid
+flowchart LR
+    subgraph PI["Raspberry Pi Zero 2 W · Raspberry Pi OS Lite 64-bit"]
+        DOM["Domoticz<br/>systemd · /opt/domoticz"]
+        DB[("domoticz.db<br/>/var/lib/domoticz")]
+        MQTT["Mosquitto<br/>127.0.0.1:1883<br/>authentication required"]
+        Z2M["Zigbee2MQTT<br/>Podman container · 200 MB cap"]
+    end
+
+    BROWSER["Browser"]
+    TAILSCALE["Tailscale tailnet<br/>optional"]
+    DONGLE["SONOFF Dongle Plus MG24<br/>firmware 8.0.2 · ember"]
+    DEVICES["Tuya Zigbee devices"]
+
+    BROWSER -->|HTTP :8080| DOM
+    TAILSCALE -.->|remote access| DOM
+    DOM --- DB
+    DEVICES -->|Zigbee| DONGLE
+    DONGLE -->|USB| Z2M
+    Z2M -->|MQTT| MQTT
+    MQTT -->|MQTT Auto Discovery| DOM
+```
+
+The installer sets up Domoticz and Mosquitto. Zigbee2MQTT
+([guide](docs/zigbee2mqtt.md)) and Tailscale (`--tailscale`,
+[guide](docs/tailscale.md)) are documented add-ons. The broker accepts clients on
+the loopback interface only, unless `--mqtt-lan` is passed.
+
+---
+
 ## 🛠️ Prerequisites
 
 Before running the script, ensure that:

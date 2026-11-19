@@ -675,3 +675,13 @@ the next session should pick up. Newest last; keep each entry to a few bullets.
 - Next session: hardware test list from `README.md` ("Tested on"), then update
   the rows, `CHANGELOG`, and tag `v2.1.0`; promote `v2.0.0` in the same session
   if it passes. No code work is pending that does not need the board.
+
+### 2026-11-19
+
+- README: added an "Architecture" Mermaid flowchart of the target stack
+  (Domoticz, Mosquitto, Zigbee2MQTT on the Zero 2 W, MG24 dongle, Tuya devices,
+  browser, optional Tailscale) with a note on what the installer covers versus
+  the documented add-ons. Documentation only; no script, asset, or `CHANGELOG`
+  change, so `v2.1.0-rc2` is unaffected.
+- Next session: unchanged — the hardware test list from the README is still the
+  gate for `v2.1.0`.
